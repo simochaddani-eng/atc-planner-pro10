@@ -1,4 +1,4 @@
-// app.js (Version FINALE - Connexion Backend OR-Tools)
+// app.js (Version ULTIME - Navigation, CRUD Modale, & Connexion Backend OR-Tools)
 
 // --- CONFIGURATION DE BASE ---
 const defaultResources = [
@@ -61,7 +61,7 @@ function closeModal() {
     $('#modalBackdrop').hidden = true; 
 }
 
-// --- NAVIGATION DOM ---
+// --- NAVIGATION DOM (CORRECTION DES BOUTONS) ---
 function setView(viewId) {
   $$('.view').forEach(view => view.style.display = 'none');
   const targetView = document.getElementById(viewId);
@@ -132,7 +132,7 @@ function calculateEstimates() {
   document.getElementById('estimateEnd').textContent = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }).replace('.', '');
 }
 
-// --- RESSOURCES (CRUD) ---
+// --- RESSOURCES (CRUD AVEC MODALE) ---
 function renderResourceSelector() {
   const eligible = appData.resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible');
   const container = document.getElementById('resourceSelector');
@@ -252,7 +252,7 @@ function confirmDeleteResource(id) {
     renderResourceSelector();
 }
 
-// --- INSTRUCTEURS (CRUD) ---
+// --- INSTRUCTEURS (CRUD AVEC MODALE) ---
 function renderInstructors() {
     const target = document.getElementById('instructorList');
     if(!target) return;
@@ -351,7 +351,7 @@ function renderDashboard() {
     document.getElementById('dashboardInstructorTotal').textContent = appData.instructors.length;
 }
 
-// --- CONFIGURATION DES ÉVÉNEMENTS ---
+// --- CONFIGURATION DES ÉVÉNEMENTS (BOUTONS) ---
 function setupEvents() {
   // 1. Navigation
   $$('.nav-item').forEach(button => button.addEventListener('click', function() { setView(this.dataset.view); }));
@@ -377,27 +377,29 @@ function setupEvents() {
     if(el) el.addEventListener('input', calculateEstimates);
   });
 
-  // 3. Modales
+  // 3. Modales (Ouvrir Ajout)
   document.getElementById('openResourceCreator')?.addEventListener('click', addResourceForm);
   document.getElementById('addInstructor')?.addEventListener('click', addInstructorForm);
 
-  // 4. Bouton Enregistrer (Sauvegarde locale)
+  // 4. Bouton Enregistrer (LocalStorage)
   document.getElementById('savePromotion')?.addEventListener('click', function() {
     const name = document.getElementById('cohortName').value;
     if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
-    
     const newPromo = { id: `p-${Date.now()}`, name, students: $('#studentCount').value, phase: state.phase };
     appData.promotions.push(newPromo);
     saveData();
     alert('✅ Promotion "' + name + '" enregistrée avec succès !');
   });
 
-  // 5. Bouton GÉNÉRER (Connexion au Backend OR-Tools)
+  // 5. Bouton GÉNÉRER LE PLANNING (Connexion Backend OR-Tools)
   document.getElementById('generatePlan')?.addEventListener('click', function() {
     const name = document.getElementById('cohortName').value;
     if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
     
     // Récupération des données pour le Backend
+    const selectedRes = appData.resources.filter(r => state.selectedResources.has(r.id));
+    const totalPositions = selectedRes.reduce((s, r) => s + r.positions, 0);
+
     const data = {
         name: name,
         students: parseInt(document.getElementById('studentCount').value),
@@ -405,7 +407,7 @@ function setupEvents() {
         sessions: parseInt(document.getElementById('sessionCount').value),
         duration: parseInt(document.getElementById('sessionDuration').value),
         startDate: document.getElementById('startDate').value || new Date().toISOString().slice(0,10),
-        positions: appData.resources.filter(r => state.selectedResources.has(r.id)).reduce((s, r) => s + r.positions, 0),
+        positions: totalPositions,
         dailyHours: [9, 10, 11, 14, 15, 16] // Horaires par défaut
     };
     
@@ -414,13 +416,30 @@ function setupEvents() {
         action: 'generate',
         data: JSON.stringify(data)
     });
-    window.location.search = params.toString(); // Redirection
+    // Redirection pour déclencher le backend
+    window.location.search = params.toString(); 
   });
 
-  // 6. Topbar
+  // 6. Topbar (Notif, Aide, Profil)
   document.querySelector('.icon-button.notification')?.addEventListener('click', () => alert('🔔 3 notifications'));
   document.querySelector('.icon-button[aria-label="Aide"]')?.addEventListener('click', () => alert('📖 Aide disponible'));
   document.querySelector('.chevron')?.addEventListener('click', () => alert('⚙️ Profil utilisateur'));
+}
+
+// --- RÉCUPÉRATION DU RÉSULTAT BACKEND (Après génération) ---
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('action') === 'result') {
+    const status = urlParams.get('status');
+    const message = urlParams.get('message');
+    if (status === 'success') {
+        alert('✅ ' + message);
+    } else {
+        alert('❌ Erreur OR-Tools : ' + message);
+    }
+    // Nettoyer l'URL pour éviter de rejouer la génération au rafraîchissement
+    setTimeout(() => {
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }, 100);
 }
 
 // --- INITIALISATION FINALE ---
