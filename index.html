@@ -7,7 +7,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <!-- Les lignes suivantes seront remplacées par l'injection Python -->
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -38,8 +37,14 @@
       <main class="content">
         <header class="topbar">
           <button class="menu-button" aria-label="Menu">☰</button>
-          <div class="page-heading"><button class="back-button" aria-label="Retour">←</button><div><h1 id="pageTitle">Bonjour, Alexandre</h1><p id="pageSubtitle">Vue d'ensemble de la planification ATC</p></div></div>
-          <div class="user-tools"><button aria-label="Notifications" class="icon-button notification">♧<b>3</b></button><button aria-label="Aide" class="icon-button">?</button><div class="avatar">AM</div><div class="user-name"><strong>Alexandre Martin</strong><small>Administrateur</small></div><span class="chevron">⌄</span></div>
+          <div class="page-heading"><button class="back-button" aria-label="Retour">←</button><div><h1 id="pageTitle">Bonjour, Utilisateur</h1><p id="pageSubtitle">Vue d'ensemble de la planification ATC</p></div></div>
+          <div class="user-tools">
+            <button aria-label="Notifications" class="icon-button notification">♧<b>3</b></button>
+            <button aria-label="Aide" class="icon-button">?</button>
+            <div class="avatar">U</div>
+            <div class="user-name"><strong>Utilisateur</strong><small>Administrateur</small></div>
+            <span class="chevron">⌄</span>
+          </div>
         </header>
 
         <section id="dashboard" class="view active-view">
@@ -117,7 +122,21 @@
         <section id="instructors" class="view instructor-view"><div class="view-toolbar"><div><p class="eyebrow">ÉQUIPE PÉDAGOGIQUE</p><h2>Instructeurs</h2><p class="helper">Ajoutez ou retirez des instructeurs. Les disponibilités sont prises en compte dans le planning.</p></div><button class="primary-button" id="addInstructor">＋ Ajouter un instructeur</button></div><section class="panel instructor-management"><div class="panel-heading"><div><h3>Liste des instructeurs</h3><p>Les suppressions mettent immédiatement à jour les options de planification.</p></div><span class="management-count" id="instructorCount">5 instructeurs</span></div><div class="instructor-list" id="instructorList"></div></section></section>
         <section id="students" class="view operational-view"><div class="view-toolbar"><div><p class="eyebrow">PROMOTIONS</p><h2>Étudiants</h2><p class="helper">Ajoutez les élèves à leur promotion. L'effectif et les groupes sont mis à jour automatiquement.</p></div><button class="primary-button" id="addStudent">＋ Ajouter un étudiant</button></div><section class="panel students-panel"><div class="student-controls"><label>Promotion<select id="studentPromotionSelect"></select></label><span id="studentCountLabel">0 étudiant</span></div><div class="student-list" id="studentList"></div></section></section>
         <section id="reports" class="view operational-view"><div class="view-toolbar"><div><p class="eyebrow">ANALYSE</p><h2>Rapports de charge</h2><p class="helper">Synthèse calculée à partir des promotions, séances et ressources créées.</p></div><button class="outline-button" id="exportReport">⇩ Exporter le rapport</button></div><div class="report-grid" id="reportGrid"></div><section class="panel report-panel"><div class="panel-heading"><div><h3>Charge par ressource</h3><p>Heures planifiées sur la période enregistrée.</p></div></div><div class="resource-report-list" id="resourceReportList"></div></section></section>
-        <section id="settings" class="view operational-view"><div class="view-toolbar"><div><p class="eyebrow">CONFIGURATION</p><h2>Paramètres</h2><p class="helper">Ces valeurs seront proposées automatiquement lors de la création d'une nouvelle promotion.</p></div></div><section class="panel settings-panel"><div class="form-grid three"><label>Nom de l'académie<input id="settingAcademyName" placeholder="Aviation Academy" /></label><label>Horaire de début par défaut<input id="settingDefaultStart" type="time" /></label><label>Horaire de fin par défaut<input id="settingDefaultEnd" type="time" /></label><label>Durée d'une séance<select id="settingDefaultDuration"><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label><label>Pause quotidienne<select id="settingDefaultBreak"><option value="0">Aucune pause</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label></div><div class="settings-footer"><p>Les paramètres n'écrasent pas les promotions existantes.</p><button class="primary-button" id="saveSettings">Enregistrer les paramètres</button></div></section></section>
+        <section id="settings" class="view operational-view">
+          <div class="view-toolbar"><div><p class="eyebrow">CONFIGURATION</p><h2>Paramètres</h2><p class="helper">Ces valeurs seront proposées automatiquement lors de la création d'une nouvelle promotion.</p></div></div>
+          <section class="panel settings-panel">
+            <div class="form-grid three">
+              <label>Nom de l'académie<input id="settingAcademyName" placeholder="Aviation Academy" /></label>
+              <label>Horaire de début par défaut<input id="settingDefaultStart" type="time" /></label>
+              <label>Horaire de fin par défaut<input id="settingDefaultEnd" type="time" /></label>
+              
+              <label>Durée d'une séance (minutes)<input id="settingDefaultDuration" type="number" min="1" step="1" value="45" /></label>
+              <label>Pause quotidienne (minutes)<input id="settingDefaultBreak" type="number" min="0" step="1" value="45" /></label>
+              <label>Nom de l'utilisateur <i>(affiché en haut)</i><input id="settingUserName" placeholder="Votre nom" /></label>
+            </div>
+            <div class="settings-footer"><p>Les paramètres n'écrasent pas les promotions existantes.</p><button class="primary-button" id="saveSettings">Enregistrer les paramètres</button></div>
+          </section>
+        </section>
       </main>
     </div>
 
