@@ -1,3 +1,4 @@
+// app.js (Version Streamlit)
 const defaultResources = [
   { id: 'twr', name: 'TWR 1–4', positions: 4, icon: '♜', phases: ['aerodrome'], availability: 'Disponible', type: 'TWR' },
   { id: 'radar1', name: 'RADAR 1', positions: 4, icon: '◉', phases: ['approach-procedure', 'approach-radar'], availability: 'Disponible', type: 'APP' },
@@ -80,7 +81,6 @@ function calculate() {
   const positionHours = totalSessions * minutes / 60;
   const groups = Math.ceil(students / positions);
   const slotsPerDay = Math.max(1, Math.floor(durationMinutes() / minutes));
-  // A rotation is a complete pass of the groups through the positions. This makes the estimate readable operationally.
   const totalRotations = groups * sessions;
   const days = Math.ceil(totalRotations / slotsPerDay);
   const selectedDays = $$('#dayToggles button.selected').map(button => Number(button.dataset.day));
@@ -117,7 +117,6 @@ function dashboardRow(name, icon, blocks) {
   return `<div class="occupancy-row"><div class="resource-label"><span class="res-icon">${icon}</span><span>${name}<small>${capacity}</small></span></div><div class="time-track">${blocks.map(block => `<div class="booking ${block.type}" style="grid-column:${block.start}/span ${block.span}">${block.title}<span>${block.time}</span></div>`).join('')}</div></div>`;
 }
 
-/* Legacy static mock-up data retained only as a reference; it is not rendered. */
 function renderDashboardOccupancyDemo() {
   const data = [
     ['TWR 1', '♜', [{ start:1, span:2, title:'P2025-A', time:'08:00 – 09:30', type:'blue-booking' }, { start:3, span:2, title:'P2025-B', time:'09:45 – 11:15', type:'green-booking' }, { start:5, span:2, title:'P2025-C', time:'11:30 – 13:00', type:'purple-booking' }, { start:7, span:2, title:'P2025-A', time:'13:45 – 15:15', type:'amber-booking' }]],
@@ -396,6 +395,9 @@ function resetPromotionForm() {
 function saveCurrentPromotion() {
   const name = $('#cohortName').value.trim();
   if (!name) { showToast('Indiquez un nom de promotion avant de l’enregistrer.'); $('#cohortName').focus(); return null; }
+
+  const info = calculate(); // Utilise votre propre calcul pour obtenir les données
+
   const record = {
     id: state.editingPromotionId || `promotion-${Date.now()}`,
     name,
@@ -410,6 +412,7 @@ function saveCurrentPromotion() {
     selectedResourceIds: [...state.selectedResources],
     status: state.generated ? 'Planifiée' : 'À planifier'
   };
+  
   const previousIndex = promotions.findIndex(item => item.id === record.id);
   if (previousIndex >= 0) promotions.splice(previousIndex, 1, record); else promotions.unshift(record);
   state.editingPromotionId = record.id;
@@ -420,6 +423,28 @@ function saveCurrentPromotion() {
   renderWeekGrid();
   renderGeneratedPlan();
   renderPhaseTracking();
+
+  // --- NOUVEAU : ENVOI AU SERVEUR PYTHON (STREAMLIT) ---
+  if (state.generated) {
+    const pythonData = {
+        name: record.name,
+        students: record.students,
+        phase: record.phase,
+        sessions: record.sessions,
+        duration: record.sessionDuration,
+        startDate: record.startDate,
+        positions: info.positions,
+        dailyHours: [9, 10, 11, 14, 15, 16]
+    };
+    
+    // Envoi à Streamlit via une redirection (méthode simple pour communiquer)
+    const params = new URLSearchParams({
+        action: 'generate',
+        data: JSON.stringify(pythonData)
+    });
+    window.location.search = params.toString();
+  }
+
   return record;
 }
 
@@ -717,6 +742,22 @@ function setupEvents() {
     if (event.target.closest('[data-save-instructor]')) addInstructorFromModal(event.target.closest('[data-save-instructor]').dataset.saveInstructor);
     if (event.target.id === 'saveMaintenance') { state.maintenance = { resourceId: $('#maintenanceResource').value, date: $('#maintenanceDate').value, reason: $('#maintenanceReason').value.trim() || 'Maintenance' }; renderWeekGrid(); renderDashboard(); closeModal(); showToast('Indisponibilité ajoutée au planning.'); }
   });
+}
+
+// --- RÉCUPÉRATION DU RÉSULTAT STREAMLIT ---
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('action') === 'result') {
+    const status = urlParams.get('status');
+    const message = urlParams.get('message');
+    if (status === 'success') {
+        showToast('✅ ' + message);
+    } else {
+        showToast('❌ ' + message);
+    }
+    // Nettoyer l'URL
+    setTimeout(() => {
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }, 100);
 }
 
 if (!$('#startDate').value) $('#startDate').value = dateKey(new Date());
