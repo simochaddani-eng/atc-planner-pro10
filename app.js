@@ -1,4 +1,4 @@
-// app.js - Version avec répartition automatique des groupes
+// app.js - Version ULTRA STABLE (Boutons garantis)
 
 // --- CONFIGURATION DE BASE ---
 const defaultResources = [
@@ -23,7 +23,6 @@ const state = {
     editingPromotionId: null 
 };
 
-// --- UTILITAIRES ---
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
 
@@ -98,7 +97,7 @@ function setView(viewId) {
   if (viewId === 'resources') renderResources();
   if (viewId === 'instructors') renderInstructors();
   if (viewId === 'settings') renderSettings();
-  if (viewId === 'phase-tracking') renderPhaseTracking(); // Appel explicite
+  if (viewId === 'phase-tracking') renderPhaseTracking();
 }
 
 // --- GESTION DU FORMULAIRE (STEPS) ---
@@ -194,7 +193,6 @@ function renderInstructorPills() {
 
 // --- SUIVI DE PHASE (AVEC RÉPARTITION DES GROUPES) ---
 function renderPhaseTracking() {
-    // Sélection de la promotion à suivre (la première ou celle sélectionnée)
     const promotion = appData.promotions[0];
     const journey = document.getElementById('phaseJourney');
     const target = document.getElementById('phaseInstructorAssignments');
@@ -203,9 +201,7 @@ function renderPhaseTracking() {
     if (!promotion) {
         $('#phaseTrackingTitle').textContent = 'Suivi de phase';
         $('#phaseTrackingSubtitle').textContent = 'Sélectionnez une promotion dans la liste pour consulter son avancement.';
-        journey.innerHTML = '<div class="empty-state">Aucune promotion enregistrée.</div>';
-        $('#phaseMetricLabel').textContent = 'Aucune promotion sélectionnée';
-        $('#phaseMetricStatus').textContent = 'En attente';
+        if(journey) journey.innerHTML = '<div class="empty-state">Aucune promotion enregistrée.</div>';
         if(target) target.innerHTML = '';
         if(groupTarget) groupTarget.innerHTML = '';
         return;
@@ -226,7 +222,6 @@ function renderPhaseTracking() {
     $('#phaseDuration').textContent = `${duration} min`;
     $('#phasePositions').textContent = positions;
 
-    // --- RÉPARTITION DES GROUPES SUR LES INSTRUCTEURS ---
     const compatible = appData.instructors.filter(instructor => {
         if (promotion.phase === 'aerodrome') return instructor.speciality === 'TWR' || instructor.speciality === 'TWR + Approche Radar';
         if (promotion.phase === 'approach-procedure' || promotion.phase === 'approach-radar') return instructor.speciality === 'Approche Radar' || instructor.speciality === 'TWR + Approche Radar';
@@ -237,7 +232,6 @@ function renderPhaseTracking() {
         if (!compatible.length) {
             target.innerHTML = '<div class="empty-state">Aucun instructeur compatible. Ajoutez-en dans le menu Instructeurs.</div>';
         } else {
-            // Calcul de la répartition
             const totalGroups = groups;
             const numInstructors = compatible.length;
             const baseGroups = Math.floor(totalGroups / numInstructors);
@@ -246,10 +240,7 @@ function renderPhaseTracking() {
             let instructorList = compatible.map((inst, index) => {
                 let assignedGroups = baseGroups;
                 if (index < remainder) assignedGroups += 1;
-                return {
-                    ...inst,
-                    groups: assignedGroups
-                };
+                return { ...inst, groups: assignedGroups };
             });
 
             target.innerHTML = instructorList.map(inst => `
@@ -262,7 +253,6 @@ function renderPhaseTracking() {
         }
     }
 
-    // --- TABLEAU DES GROUPES ---
     if (groupTarget) {
         const rows = Array.from({ length: groups }, (_, index) => {
             const first = index * positions + 1;
@@ -473,13 +463,29 @@ function renderDashboard() {
     document.getElementById('dashboardInstructorTotal').textContent = appData.instructors.length;
 }
 
-// --- CONFIGURATION DES ÉVÉNEMENTS ---
+// --- CONFIGURATION DES ÉVÉNEMENTS (BOUTONS) ---
 function setupEvents() {
-  $$('.nav-item').forEach(btn => btn.addEventListener('click', function() { setView(this.dataset.view); }));
-  $$('[data-go]').forEach(btn => btn.addEventListener('click', function() { setView(this.dataset.go); }));
-  $$('.step').forEach(step => step.addEventListener('click', function() { setStep(parseInt(this.dataset.step)); }));
-  $$('[data-next-step]').forEach(btn => btn.addEventListener('click', function() { setStep(parseInt(this.dataset.nextStep)); }));
+  // 1. Navigation latérale
+  $$('.nav-item').forEach(button => {
+    button.addEventListener('click', function() { setView(this.dataset.view); });
+  });
 
+  // 2. Tous les boutons data-go
+  $$('[data-go]').forEach(button => {
+    button.addEventListener('click', function() { setView(this.dataset.go); });
+  });
+
+  // 3. Le stepper (haut du formulaire)
+  $$('.step').forEach(step => {
+    step.addEventListener('click', function() { setStep(parseInt(this.dataset.step)); });
+  });
+
+  // 4. Boutons Suivant / Précédent
+  $$('[data-next-step]').forEach(btn => {
+    btn.addEventListener('click', function() { setStep(parseInt(this.dataset.nextStep)); });
+  });
+
+  // 5. Sélection des phases (cartes)
   const cards = document.querySelectorAll('.phase-card');
   cards.forEach(card => {
     card.addEventListener('click', function() {
@@ -493,26 +499,31 @@ function setupEvents() {
     });
   });
 
-  ['studentCount', 'sessionCount', 'sessionDuration', 'cohortName'].forEach(id => {
+  // 6. Mise à jour en temps réel du panneau "Résultat estimatif"
+  ['studentCount', 'sessionCount', 'sessionDuration', 'cohortName', 'startDate'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.addEventListener('input', calculateEstimates);
   });
 
+  // 7. Boutons CRUD et Sauvegardes
   document.getElementById('saveSettings')?.addEventListener('click', saveSettings);
   document.getElementById('openResourceCreator')?.addEventListener('click', addResourceForm);
   document.getElementById('addInstructor')?.addEventListener('click', addInstructorForm);
-  
+
+  // 8. Bouton Enregistrer la promotion
   document.getElementById('savePromotion')?.addEventListener('click', function() {
     const name = document.getElementById('cohortName').value;
-    if(!name) return alert('Veuillez donner un nom.');
-    appData.promotions.push({ id: `p-${Date.now()}`, name, students: $('#studentCount').value, phase: state.phase });
+    if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
+    const newPromo = { id: `p-${Date.now()}`, name, students: $('#studentCount').value, phase: state.phase };
+    appData.promotions.push(newPromo);
     saveData();
     alert('✅ Promotion "' + name + '" enregistrée.');
   });
 
+  // 9. Bouton GÉNÉRER LE PLANNING
   document.getElementById('generatePlan')?.addEventListener('click', function() {
     const name = document.getElementById('cohortName').value;
-    if(!name) return alert('Veuillez donner un nom.');
+    if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
     const totalPos = appData.resources.filter(r => state.selectedResources.has(r.id)).reduce((s, r) => s + r.positions, 0);
     const data = {
         name: name,
@@ -527,12 +538,19 @@ function setupEvents() {
     const params = new URLSearchParams({ action: 'generate', data: JSON.stringify(data) });
     window.location.search = params.toString();
   });
+
+  // 10. Topbar (Notif, Aide, Profil)
+  document.querySelector('.icon-button.notification')?.addEventListener('click', () => alert('🔔 3 notifications'));
+  document.querySelector('.icon-button[aria-label="Aide"]')?.addEventListener('click', () => alert('📖 Aide disponible'));
+  document.querySelector('.chevron')?.addEventListener('click', () => alert('⚙️ Profil utilisateur'));
 }
 
-// --- RÉSULTAT BACKEND ---
+// --- RÉCUPÉRATION DU RÉSULTAT BACKEND ---
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('action') === 'result') {
-    alert(urlParams.get('status') === 'success' ? '✅ ' + urlParams.get('message') : '❌ ' + urlParams.get('message'));
+    const status = urlParams.get('status');
+    const message = urlParams.get('message');
+    alert(status === 'success' ? '✅ ' + message : '❌ ' + message);
     setTimeout(() => { window.history.replaceState({}, document.title, window.location.pathname); }, 100);
 }
 
@@ -543,5 +561,5 @@ document.addEventListener('DOMContentLoaded', function() {
     renderResourceSelector();
     calculateEstimates();
     setupEvents();
-    console.log('✅ ATC Planner avec répartition des groupes OK');
+    console.log('✅ ATC Planner - Interface prête');
 });
