@@ -1,18 +1,26 @@
+Voici le code complet et corrigé du fichier **`main.py`** prêt à être copié-collé :
+
+```python
 import streamlit as st
 
-st.set_page_config(page_title="ATC Planner – Aviation Academy", layout="wide", page_icon="✈️")
+# Configuration de la page
+st.set_page_config(
+    page_title="ATC Planner – Aviation Academy",
+    layout="wide",
+    page_icon="✈️"
+)
 
-# Charger le CSS
+# Chargement du style CSS personnalisé
 def load_css(file_name):
-    with open(file_name) as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    try:
+        with open(file_name) as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        pass
 
-try:
-    load_css("styles.css")
-except FileNotFoundError:
-    pass
+load_css("styles.css")
 
-# Authentification Simple
+# Système d'authentification simple
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -30,9 +38,10 @@ if not st.session_state["authenticated"]:
                 st.error("Mot de passe incorrect.")
     st.stop()
 
-# Application Principale (Après connexion)
+# Importation des modules applicatifs
 from modules import dashboard, new_planning, planning_view, phase_management
 
+# Barre latérale (Menu de navigation)
 with st.sidebar:
     st.markdown("### ✈️ AVIATION ACADEMY")
     st.caption("Gestion & Planification ATC")
@@ -41,16 +50,21 @@ with st.sidebar:
     menu = st.radio(
         "Navigation",
         ["Tableau de bord", "Nouvelle planification", "Planning des simulateurs", "Suivi des phases"],
-        icons=["speedometer2", "plus-circle", "calendar-week", "layers"]
+        format_func=lambda x: {
+            "Tableau de bord": "📊 Tableau de bord",
+            "Nouvelle planification": "➕ Nouvelle planification",
+            "Planning des simulateurs": "📅 Planning des simulateurs",
+            "Suivi des phases": "🎯 Suivi des phases"
+        }[x]
     )
     
     st.markdown("---")
     st.markdown("👤 **Alexandre Martin**\n\n*Administrateur*")
-    if st.button("Déconnexion"):
+    if st.button("Déconnexion", use_container_width=True):
         st.session_state["authenticated"] = False
         st.rerun()
 
-# Router
+# Router principal
 if menu == "Tableau de bord":
     dashboard.render()
 elif menu == "Nouvelle planification":
@@ -59,3 +73,5 @@ elif menu == "Planning des simulateurs":
     planning_view.render()
 elif menu == "Suivi des phases":
     phase_management.render()
+
+```
