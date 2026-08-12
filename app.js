@@ -1,4 +1,4 @@
-// app.js (Version Finale avec Modale CSS & CRUD)
+// app.js (Version FINALE - Connexion Backend OR-Tools)
 
 // --- CONFIGURATION DE BASE ---
 const defaultResources = [
@@ -61,7 +61,7 @@ function closeModal() {
     $('#modalBackdrop').hidden = true; 
 }
 
-// --- NAVIGATION DOM (CORRECTION DES BOUTONS) ---
+// --- NAVIGATION DOM ---
 function setView(viewId) {
   $$('.view').forEach(view => view.style.display = 'none');
   const targetView = document.getElementById(viewId);
@@ -107,7 +107,7 @@ function setStep(stepNumber) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// --- CALCULS ESTIMATIFS ---
+// --- CALCULS ESTIMATIFS (Frontend) ---
 function calculateEstimates() {
   const students = Math.max(1, Number($('#studentCount').value) || 1);
   const sessions = Number($('#sessionCount').value) || 8;
@@ -132,7 +132,7 @@ function calculateEstimates() {
   document.getElementById('estimateEnd').textContent = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }).replace('.', '');
 }
 
-// --- RESSOURCES (CRUD AVEC MODALE) ---
+// --- RESSOURCES (CRUD) ---
 function renderResourceSelector() {
   const eligible = appData.resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible');
   const container = document.getElementById('resourceSelector');
@@ -252,7 +252,7 @@ function confirmDeleteResource(id) {
     renderResourceSelector();
 }
 
-// --- INSTRUCTEURS (CRUD AVEC MODALE) ---
+// --- INSTRUCTEURS (CRUD) ---
 function renderInstructors() {
     const target = document.getElementById('instructorList');
     if(!target) return;
@@ -353,27 +353,13 @@ function renderDashboard() {
 
 // --- CONFIGURATION DES ÉVÉNEMENTS ---
 function setupEvents() {
-  // 1. Navigation latérale
-  $$('.nav-item').forEach(button => {
-    button.addEventListener('click', function() { setView(this.dataset.view); });
-  });
+  // 1. Navigation
+  $$('.nav-item').forEach(button => button.addEventListener('click', function() { setView(this.dataset.view); }));
+  $$('[data-go]').forEach(button => button.addEventListener('click', function() { setView(this.dataset.go); }));
+  $$('.step').forEach(step => step.addEventListener('click', function() { setStep(parseInt(this.dataset.step)); }));
+  $$('[data-next-step]').forEach(btn => btn.addEventListener('click', function() { setStep(parseInt(this.dataset.nextStep)); }));
 
-  // 2. Les boutons data-go
-  $$('[data-go]').forEach(button => {
-    button.addEventListener('click', function() { setView(this.dataset.go); });
-  });
-
-  // 3. Le stepper
-  $$('.step').forEach(step => {
-    step.addEventListener('click', function() { setStep(parseInt(this.dataset.step)); });
-  });
-
-  // 4. Boutons Next / Prev
-  $$('[data-next-step]').forEach(btn => {
-    btn.addEventListener('click', function() { setStep(parseInt(this.dataset.nextStep)); });
-  });
-
-  // 5. Cartes de phases
+  // 2. Phases et Champs
   const cards = document.querySelectorAll('.phase-card');
   cards.forEach(card => {
     card.addEventListener('click', function() {
@@ -386,31 +372,52 @@ function setupEvents() {
       calculateEstimates();
     });
   });
-
-  // 6. Champs du formulaire
   ['studentCount', 'sessionCount', 'sessionDuration'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.addEventListener('input', calculateEstimates);
   });
 
-  // 7. Boutons des Modales (Ouverture)
+  // 3. Modales
   document.getElementById('openResourceCreator')?.addEventListener('click', addResourceForm);
   document.getElementById('addInstructor')?.addEventListener('click', addInstructorForm);
 
-  // 8. Bouton Enregistrer/Générer
+  // 4. Bouton Enregistrer (Sauvegarde locale)
   document.getElementById('savePromotion')?.addEventListener('click', function() {
     const name = document.getElementById('cohortName').value;
     if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
-    alert('✅ Promotion "' + name + '" enregistrée !');
+    
+    const newPromo = { id: `p-${Date.now()}`, name, students: $('#studentCount').value, phase: state.phase };
+    appData.promotions.push(newPromo);
+    saveData();
+    alert('✅ Promotion "' + name + '" enregistrée avec succès !');
   });
-  
+
+  // 5. Bouton GÉNÉRER (Connexion au Backend OR-Tools)
   document.getElementById('generatePlan')?.addEventListener('click', function() {
     const name = document.getElementById('cohortName').value;
     if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
-    alert('🚀 OR-Tools génère le planning pour "' + name + '"');
+    
+    // Récupération des données pour le Backend
+    const data = {
+        name: name,
+        students: parseInt(document.getElementById('studentCount').value),
+        phase: state.phase,
+        sessions: parseInt(document.getElementById('sessionCount').value),
+        duration: parseInt(document.getElementById('sessionDuration').value),
+        startDate: document.getElementById('startDate').value || new Date().toISOString().slice(0,10),
+        positions: appData.resources.filter(r => state.selectedResources.has(r.id)).reduce((s, r) => s + r.positions, 0),
+        dailyHours: [9, 10, 11, 14, 15, 16] // Horaires par défaut
+    };
+    
+    // Envoi au Backend (API Streamlit)
+    const params = new URLSearchParams({
+        action: 'generate',
+        data: JSON.stringify(data)
+    });
+    window.location.search = params.toString(); // Redirection
   });
 
-  // 9. Boutons de l'en-tête
+  // 6. Topbar
   document.querySelector('.icon-button.notification')?.addEventListener('click', () => alert('🔔 3 notifications'));
   document.querySelector('.icon-button[aria-label="Aide"]')?.addEventListener('click', () => alert('📖 Aide disponible'));
   document.querySelector('.chevron')?.addEventListener('click', () => alert('⚙️ Profil utilisateur'));
