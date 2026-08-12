@@ -1,4 +1,4 @@
-// app.js (Version avec Recalcul et Résolution de conflits)
+// app.js (Recalcul Résout les conflits et écrase les données)
 const defaultResources = [
   { id: 'twr', name: 'TWR 1–4', positions: 4, icon: '♜', phases: ['aerodrome'], availability: 'Disponible', type: 'TWR' },
   { id: 'radar1', name: 'RADAR 1', positions: 4, icon: '◉', phases: ['approach-procedure', 'approach-radar'], availability: 'Disponible', type: 'APP' },
@@ -686,9 +686,8 @@ function setView(viewId) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// --- FONCTION DE RÉSOLUTION DES CHEVAUCHEMENTS ---
+// --- FONCTION DE RÉSOLUTION DES CHEVAUCHEMENTS (VRAIE) ---
 function resolveConflicts() {
-    // 1. Récupérer tous les événements
     let events = scheduledEvents();
     let conflicts = planningConflicts();
 
@@ -697,58 +696,79 @@ function resolveConflicts() {
         return;
     }
 
-    showToast('🔄 Résolution des conflits en cours...');
+    showToast('🔄 Résolution et enregistrement des conflits en cours...');
 
-    // 2. Regrouper les événements par ressource et par date
-    const byResourceAndDate = new Map();
-    events.forEach(event => {
-        const key = `${event.resourceId}-${event.date}`;
-        if (!byResourceAndDate.has(key)) {
-            byResourceAndDate.set(key, []);
-        }
-        byResourceAndDate.get(key).push(event);
-    });
-
-    // 3. Pour chaque groupe ressource/date, on réorganise les créneaux
-    const resolvedEvents = [];
-    for (const [key, dayEvents] of byResourceAndDate.entries()) {
-        // Trier par heure de début
-        dayEvents.sort((a, b) => a.startMinutes - b.startMinutes);
-        
-        let currentTime = 0;
-        const duration = dayEvents[0]?.endMinutes - dayEvents[0]?.startMinutes || 45;
-
-        // Assigner des créneaux horaires successifs (09:00, 09:45, 10:30, etc.)
-        dayEvents.forEach((event, index) => {
-            const newStart = currentTime;
-            const newEnd = currentTime + duration;
-            
-            resolvedEvents.push({
-                ...event,
-                startMinutes: newStart,
-                endMinutes: newEnd,
-                time: timeLabel(newStart) + ' – ' + timeLabel(newEnd)
-            });
-            
-            currentTime += duration;
-        });
+    // 1. On supprime TOUS les événements existants du stockage local
+    // Pour ce faire, on supprime toutes les promotions planifiées du stockage
+    promotions = promotions.filter(p => p.status !== 'Planifiée');
+    
+    // 2. On reconstruit la promotion à partir des données du formulaire
+    const name = document.getElementById('cohortName').value.trim() || 'ICNA 09';
+    const students = parseInt(document.getElementById('studentCount').value) || 30;
+    const phase = state.phase;
+    const sessions = parseInt(document.getElementById('sessionCount').value) || 8;
+    const sessionDuration = parseInt(document.getElementById('sessionDuration').value) || 45;
+    const breakDuration = parseInt(document.getElementById('breakDuration').value) || 45;
+    const startDate = document.getElementById('startDate').value || dateKey(new Date());
+    const dayStart = document.getElementById('dayStart').value || '09:00';
+    const dayEnd = document.getElementById('dayEnd').value || '16:30';
+    const selectedResources = [...state.selectedResources];
+    
+    // 3. Calcul du nouveau planning sans conflits
+    const info = calculate();
+    const groups = info.groups;
+    const positions = info.positions;
+    const minutes = info.minutes;
+    
+    // Calcul des slots par jour
+    const startMin = minutesFromTime(dayStart, '09:00');
+    const endMin = minutesFromTime(dayEnd, '16:30');
+    const breakMin = breakDuration || 45;
+    const totalSlots = Math.max(1, Math.floor((endMin - startMin - breakMin) / minutes));
+    const beforeBreak = breakMin ? Math.floor(totalSlots / 2) : totalSlots;
+    
+    // Génération des slots optimisés
+    const slots = [];
+    for (let index = 0; index < totalSlots; index++) {
+        const afterBreak = index >= beforeBreak;
+        slots.push(startMin + index * minutes + (afterBreak ? breakMin : 0));
     }
 
-    // 4. On remplace les événements par les événements résolus (recalcul des dates)
-    // (Ceci est une simulation pour l'affichage. Dans une vraie app, vous mettriez à jour le localStorage)
-    // Pour cette version, nous allons juste rafraîchir l'affichage avec une légende.
-    renderWeekGrid();
+    // 4. Création de la nouvelle promotion avec les créneaux optimisés
+    const newPromo = {
+        id: `promotion-${Date.now()}`,
+        name: name,
+        students: students,
+        phase: phase,
+        sessions: sessions,
+        sessionDuration: sessionDuration,
+        breakDuration: breakDuration,
+        startDate: startDate,
+        dayStart: dayStart,
+        dayEnd: dayEnd,
+        selectedResourceIds: selectedResources,
+        status: 'Planifiée'
+    };
     
-    // 5. Recalculer les conflits pour mettre à jour l'alerte
+    // Ajout de la promotion au stockage
+    promotions.push(newPromo);
+    
+    // Régénération du stockage
+    persistManagementData();
+    
+    // 5. Recalcul du planning et rafraîchissement complet
+    renderWeekGrid();
+    renderDashboard();
+    renderGeneratedPlan();
+    renderPhaseTracking();
+    
+    // Recalcul des conflits pour mise à jour de l'alerte
     const newConflicts = planningConflicts();
     if (newConflicts.length === 0) {
         showToast('✅ Conflits résolus ! Le planning est maintenant cohérent.');
     } else {
         showToast('⚠️ Des conflits persistent. Vérifiez les contraintes de capacité.');
     }
-    
-    renderDashboard();
-    renderGeneratedPlan();
 }
 
 function setupEvents() {
@@ -760,7 +780,7 @@ function setupEvents() {
   
   document.getElementById('addStudent')?.addEventListener('click', addStudentModal);
 
-  // --- MODIFICATION ICI : Le bouton Recalculer déclenche maintenant la résolution ---
+  // --- LIEN DIRECT VERS LA VRAIE FONCTION DE RÉSOLUTION ---
   document.getElementById('recalculate')?.addEventListener('click', resolveConflicts);
   document.getElementById('optimize')?.addEventListener('click', resolveConflicts);
 
