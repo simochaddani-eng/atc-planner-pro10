@@ -7,7 +7,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <!-- Les lignes suivantes seront remplacées par l'injection Python -->
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -38,8 +37,14 @@
       <main class="content">
         <header class="topbar">
           <button class="menu-button" aria-label="Menu">☰</button>
-          <div class="page-heading"><button class="back-button" aria-label="Retour">←</button><div><h1 id="pageTitle">Bonjour, Alexandre</h1><p id="pageSubtitle">Vue d'ensemble de la planification ATC</p></div></div>
-          <div class="user-tools"><button aria-label="Notifications" class="icon-button notification">♧<b>3</b></button><button aria-label="Aide" class="icon-button">?</button><div class="avatar">AM</div><div class="user-name"><strong>Alexandre Martin</strong><small>Administrateur</small></div><span class="chevron">⌄</span></div>
+          <div class="page-heading"><button class="back-button" aria-label="Retour">←</button><div><h1 id="pageTitle">Bonjour, Utilisateur</h1><p id="pageSubtitle">Vue d'ensemble de la planification ATC</p></div></div>
+          <div class="user-tools">
+            <button aria-label="Notifications" class="icon-button notification">♧<b>3</b></button>
+            <button aria-label="Aide" class="icon-button">?</button>
+            <div class="avatar">U</div>
+            <div class="user-name"><strong>Utilisateur</strong><small>Administrateur</small></div>
+            <span class="chevron">⌄</span>
+          </div>
         </header>
 
         <section id="dashboard" class="view active-view">
@@ -81,14 +86,87 @@
           </section>
           <div class="planning-layout">
             <section class="planner-card">
-              <ol class="stepper"><li class="step active"><b>1</b><span>Promotion<small>Informations générales</small></span></li><li class="step"><b>2</b><span>Paramètres<small>Séances et horaires</small></span></li><li class="step"><b>3</b><span>Ressources<small>Instructeurs et positions</small></span></li><li class="step"><b>4</b><span>Prévisualisation<small>Résumé et validation</small></span></li></ol>
-              <div class="planner-section"><h3>Informations de la promotion</h3><div class="form-grid four"><label>Nom de la promotion<input id="cohortName" placeholder="Ex. ICNA 07" /></label><label>Effectif<input id="studentCount" type="number" min="1" value="30" /></label><label>Date de début<input id="startDate" type="date" /></label><label>Description <span class="optional">(facultatif)</span><input placeholder="Notes sur la promotion" /></label></div></div>
-              <div class="planner-section"><h3>Phase de formation</h3><div class="phase-cards" id="phaseCards"><button class="phase-card" data-phase="aerodrome"><span class="phase-symbol">A</span><b>Aérodrome</b><small>Phase 1 · TWR</small></button><button class="phase-card" data-phase="approach-procedure"><span class="phase-symbol">↘</span><b>Approche Procédure</b><small>Phase 2</small></button><button class="phase-card" data-phase="enroute-procedure"><span class="phase-symbol">↗</span><b>En-route Procédure</b><small>Phase 3</small></button><button class="phase-card selected" data-phase="approach-radar"><span class="phase-symbol">◉</span><b>Approche Radar</b><small>Phase 4 · RADAR</small></button><button class="phase-card" data-phase="enroute-radar"><span class="phase-symbol">⌁</span><b>En-route Radar</b><small>Phase 5 · RADAR</small></button></div></div>
-              <div class="planner-section"><h3>Programme & fenêtres de planification</h3><div class="form-grid three"><label>Nombre de séances<select id="sessionCount"><option value="8" selected>8 séances</option><option value="6">6 séances</option><option value="10">10 séances</option><option value="12">12 séances</option></select></label><label>Durée par étudiant<select id="sessionDuration"><option value="45" selected>45 minutes</option><option value="30">30 minutes</option><option value="60">60 minutes</option></select></label><label>Pause quotidienne<select id="breakDuration"><option value="45" selected>45 minutes</option><option value="30">30 minutes</option><option value="60">60 minutes</option><option value="0">Aucune pause</option></select></label></div><div class="form-grid three second-row"><label>Début de journée<input id="dayStart" type="time" value="09:00" /></label><label>Fin de journée<input id="dayEnd" type="time" value="16:30" /></label><label>Jours travaillés<div class="day-toggles" id="dayToggles"><button class="selected" data-day="1">Lun</button><button class="selected" data-day="2">Mar</button><button class="selected" data-day="3">Mer</button><button class="selected" data-day="4">Jeu</button><button class="selected" data-day="5">Ven</button><button data-day="6">Sam</button><button data-day="0">Dim</button></div></label></div></div>
-              <div class="planner-section resources-choice"><div class="section-row"><div><h3>Ressources & encadrement</h3><p>Les positions sont polyvalentes : choisissez les ressources compatibles avec la phase.</p></div><span id="resourceCompatibility">RADAR 1 et RADAR 2 compatibles</span></div><div class="resource-selector" id="resourceSelector"></div><div class="instructor-pills" id="instructorPills"></div></div>
-              <div class="planner-footer"><button class="text-button" id="savePromotion">Enregistrer la promotion</button><div><button class="outline-button" data-go="dashboard">Annuler</button><button class="primary-button" id="generatePlan">Générer le planning <span>→</span></button></div></div>
+              <ol class="stepper">
+                <li class="step active" data-step="1"><b>1</b><span>Promotion<small>Informations générales</small></span></li>
+                <li class="step" data-step="2"><b>2</b><span>Paramètres<small>Séances et horaires</small></span></li>
+                <li class="step" data-step="3"><b>3</b><span>Ressources<small>Instructeurs et positions</small></span></li>
+                <li class="step" data-step="4"><b>4</b><span>Prévisualisation<small>Résumé et validation</small></span></li>
+              </ol>
+              
+              <!-- ÉTAPE 1 -->
+              <div id="sectionPromotion" class="planner-section">
+                <h3>Informations de la promotion</h3>
+                <div class="form-grid four">
+                  <label>Nom de la promotion<input id="cohortName" placeholder="Ex. ICNA 07" /></label>
+                  <label>Effectif<input id="studentCount" type="number" min="1" value="30" /></label>
+                  <label>Date de début<input id="startDate" type="date" /></label>
+                  <label>Description <span class="optional">(facultatif)</span><input placeholder="Notes sur la promotion" /></label>
+                </div>
+                <div style="margin-top: 15px; text-align: right;">
+                  <button class="primary-button" data-next-step="2">Suivant →</button>
+                </div>
+              </div>
+
+              <!-- ÉTAPE 2 -->
+              <div id="sectionParams" class="planner-section phase-selection hidden">
+                <h3>Phase de formation</h3>
+                <div class="phase-cards" id="phaseCards">
+                  <button class="phase-card" data-phase="aerodrome"><span class="phase-symbol">A</span><b>Aérodrome</b><small>Phase 1 · TWR</small></button>
+                  <button class="phase-card" data-phase="approach-procedure"><span class="phase-symbol">↘</span><b>Approche Procédure</b><small>Phase 2</small></button>
+                  <button class="phase-card" data-phase="enroute-procedure"><span class="phase-symbol">↗</span><b>En-route Procédure</b><small>Phase 3</small></button>
+                  <button class="phase-card selected" data-phase="approach-radar"><span class="phase-symbol">◉</span><b>Approche Radar</b><small>Phase 4 · RADAR</small></button>
+                  <button class="phase-card" data-phase="enroute-radar"><span class="phase-symbol">⌁</span><b>En-route Radar</b><small>Phase 5 · RADAR</small></button>
+                </div>
+                <div style="margin-top: 15px; display: flex; justify-content: space-between;">
+                  <button class="outline-button" data-next-step="1">← Précédent</button>
+                  <button class="primary-button" data-next-step="3">Suivant →</button>
+                </div>
+              </div>
+
+              <!-- ÉTAPE 3 -->
+              <div id="sectionResources" class="planner-section resources-choice hidden">
+                <div class="section-row"><div><h3>Ressources & encadrement</h3><p>Les positions sont polyvalentes : choisissez les ressources compatibles avec la phase.</p></div><span id="resourceCompatibility">RADAR 1 et RADAR 2 compatibles</span></div>
+                <div class="resource-selector" id="resourceSelector"></div>
+                <div class="instructor-pills" id="instructorPills"></div>
+                <div style="margin-top: 15px; display: flex; justify-content: space-between;">
+                  <button class="outline-button" data-next-step="2">← Précédent</button>
+                  <button class="primary-button" data-next-step="4">Suivant →</button>
+                </div>
+              </div>
+
+              <!-- ÉTAPE 4 : PRÉVISUALISATION -->
+              <div id="sectionPreview" class="planner-section hidden">
+                <h3>Prévisualisation du planning</h3>
+                <p style="color: #7d899e; font-size: 12px;">Vérifiez les informations ci-dessous avant de générer le planning.</p>
+                <div id="previewContent" style="border: 1px solid #eef1f7; border-radius: 6px; padding: 15px; background: #fbfcff;">
+                  <p><strong>Promotion :</strong> <span id="previewName">—</span></p>
+                  <p><strong>Effectif :</strong> <span id="previewStudents">—</span></p>
+                  <p><strong>Phase :</strong> <span id="previewPhase">—</span></p>
+                  <p><strong>Ressources :</strong> <span id="previewResources">—</span></p>
+                </div>
+                <div class="planner-footer">
+                  <button class="text-button" id="savePromotion">Enregistrer la promotion</button>
+                  <div>
+                    <button class="outline-button" data-next-step="3">← Précédent</button>
+                    <button class="primary-button" id="generatePlan">Générer le planning <span>→</span></button>
+                  </div>
+                </div>
+              </div>
+
             </section>
-            <aside class="estimate-card"><div class="estimate-heading"><span class="estimate-icon">▥</span><h3>Résultat estimatif</h3></div><div class="soft-info"><b>i</b><p>Estimation actualisée selon les contraintes saisies.</p></div><div class="estimate-list"><div><span class="estimate-small-icon">▦</span><p>Total séances<small>Étudiants × programme</small></p><strong id="estimateSessions">240</strong></div><div><span class="estimate-small-icon green-text">◷</span><p>Heures-position<small>Charge totale à réaliser</small></p><strong id="estimateHours">180 h</strong></div><div><span class="estimate-small-icon purple-text">↻</span><p>Groupes / rotations<small>À répartir par séance</small></p><strong id="estimateGroups">8 groupes</strong></div><div><span class="estimate-small-icon amber-text">▣</span><p>Jours de planification<small>Selon créneaux et capacité</small></p><strong id="estimateDays">8 jours</strong></div><div><span class="estimate-small-icon">▦</span><p>Fin prévisionnelle<small>Hors jours d'indisponibilité</small></p><strong id="estimateEnd">11 juin</strong></div></div><div class="estimate-footer"><b>✓</b><p>Le planning sera généré avec contrôle des conflits, des indisponibilités et de la charge instructeur.</p></div></aside>
+            
+            <aside class="estimate-card">
+              <div class="estimate-heading"><span class="estimate-icon">▥</span><h3>Résultat estimatif</h3></div>
+              <div class="soft-info"><b>i</b><p>Estimation actualisée selon les contraintes saisies.</p></div>
+              <div class="estimate-list">
+                <div><span class="estimate-small-icon">▦</span><p>Total séances<small>Étudiants × programme</small></p><strong id="estimateSessions">0</strong></div>
+                <div><span class="estimate-small-icon green-text">◷</span><p>Heures-position<small>Charge totale à réaliser</small></p><strong id="estimateHours">0 h</strong></div>
+                <div><span class="estimate-small-icon purple-text">↻</span><p>Groupes / rotations<small>À répartir par séance</small></p><strong id="estimateGroups">0 groupes</strong></div>
+                <div><span class="estimate-small-icon amber-text">▣</span><p>Jours de planification<small>Selon créneaux et capacité</small></p><strong id="estimateDays">0 jours</strong></div>
+                <div><span class="estimate-small-icon">▦</span><p>Fin prévisionnelle<small>Hors jours d'indisponibilité</small></p><strong id="estimateEnd">—</strong></div>
+              </div>
+              <div class="estimate-footer"><b>✓</b><p>Le planning sera généré avec contrôle des conflits, des indisponibilités et de la charge instructeur.</p></div>
+            </aside>
           </div>
         </section>
 
@@ -117,7 +195,21 @@
         <section id="instructors" class="view instructor-view"><div class="view-toolbar"><div><p class="eyebrow">ÉQUIPE PÉDAGOGIQUE</p><h2>Instructeurs</h2><p class="helper">Ajoutez ou retirez des instructeurs. Les disponibilités sont prises en compte dans le planning.</p></div><button class="primary-button" id="addInstructor">＋ Ajouter un instructeur</button></div><section class="panel instructor-management"><div class="panel-heading"><div><h3>Liste des instructeurs</h3><p>Les suppressions mettent immédiatement à jour les options de planification.</p></div><span class="management-count" id="instructorCount">5 instructeurs</span></div><div class="instructor-list" id="instructorList"></div></section></section>
         <section id="students" class="view operational-view"><div class="view-toolbar"><div><p class="eyebrow">PROMOTIONS</p><h2>Étudiants</h2><p class="helper">Ajoutez les élèves à leur promotion. L'effectif et les groupes sont mis à jour automatiquement.</p></div><button class="primary-button" id="addStudent">＋ Ajouter un étudiant</button></div><section class="panel students-panel"><div class="student-controls"><label>Promotion<select id="studentPromotionSelect"></select></label><span id="studentCountLabel">0 étudiant</span></div><div class="student-list" id="studentList"></div></section></section>
         <section id="reports" class="view operational-view"><div class="view-toolbar"><div><p class="eyebrow">ANALYSE</p><h2>Rapports de charge</h2><p class="helper">Synthèse calculée à partir des promotions, séances et ressources créées.</p></div><button class="outline-button" id="exportReport">⇩ Exporter le rapport</button></div><div class="report-grid" id="reportGrid"></div><section class="panel report-panel"><div class="panel-heading"><div><h3>Charge par ressource</h3><p>Heures planifiées sur la période enregistrée.</p></div></div><div class="resource-report-list" id="resourceReportList"></div></section></section>
-        <section id="settings" class="view operational-view"><div class="view-toolbar"><div><p class="eyebrow">CONFIGURATION</p><h2>Paramètres</h2><p class="helper">Ces valeurs seront proposées automatiquement lors de la création d'une nouvelle promotion.</p></div></div><section class="panel settings-panel"><div class="form-grid three"><label>Nom de l'académie<input id="settingAcademyName" placeholder="Aviation Academy" /></label><label>Horaire de début par défaut<input id="settingDefaultStart" type="time" /></label><label>Horaire de fin par défaut<input id="settingDefaultEnd" type="time" /></label><label>Durée d'une séance<select id="settingDefaultDuration"><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label><label>Pause quotidienne<select id="settingDefaultBreak"><option value="0">Aucune pause</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label></div><div class="settings-footer"><p>Les paramètres n'écrasent pas les promotions existantes.</p><button class="primary-button" id="saveSettings">Enregistrer les paramètres</button></div></section></section>
+        <section id="settings" class="view operational-view">
+          <div class="view-toolbar"><div><p class="eyebrow">CONFIGURATION</p><h2>Paramètres</h2><p class="helper">Ces valeurs seront proposées automatiquement lors de la création d'une nouvelle promotion.</p></div></div>
+          <section class="panel settings-panel">
+            <div class="form-grid three">
+              <label>Nom de l'académie<input id="settingAcademyName" placeholder="Aviation Academy" /></label>
+              <label>Horaire de début par défaut<input id="settingDefaultStart" type="time" /></label>
+              <label>Horaire de fin par défaut<input id="settingDefaultEnd" type="time" /></label>
+              
+              <label>Durée d'une séance (minutes)<input id="settingDefaultDuration" type="number" min="1" step="1" value="45" /></label>
+              <label>Pause quotidienne (minutes)<input id="settingDefaultBreak" type="number" min="0" step="1" value="45" /></label>
+              <label>Nom de l'utilisateur <i>(affiché en haut)</i><input id="settingUserName" placeholder="Votre nom" /></label>
+            </div>
+            <div class="settings-footer"><p>Les paramètres n'écrasent pas les promotions existantes.</p><button class="primary-button" id="saveSettings">Enregistrer les paramètres</button></div>
+          </section>
+        </section>
       </main>
     </div>
 
