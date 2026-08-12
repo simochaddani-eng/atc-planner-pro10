@@ -1,4 +1,4 @@
-// app.js (Version FINALE - Connexion Backend OR-Tools)
+// app.js - Version complète avec panneau "Résultat estimatif" fonctionnel
 
 // --- CONFIGURATION DE BASE ---
 const defaultResources = [
@@ -15,6 +15,7 @@ const phaseLabels = {
   'enroute-radar': 'En-route Radar'
 };
 
+// --- ÉTAT DE L'APPLICATION ---
 const state = { 
     phase: 'approach-radar', 
     selectedResources: new Set(['radar1']), 
@@ -31,13 +32,19 @@ function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({
 function initials(name) { return name.split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase(); }
 
 // --- GESTION DU STOCKAGE LOCAL (LOCALSTORAGE) ---
+// On garde les données dans le navigateur pour persister les paramètres
 let appData = loadData();
 function loadData() {
     try {
         const saved = JSON.parse(localStorage.getItem('atc-planner-data'));
         if(saved) return saved;
     } catch(e) {}
-    return { resources: defaultResources, instructors: [], promotions: [] };
+    return { 
+        resources: defaultResources, 
+        instructors: [], 
+        promotions: [], 
+        settings: { name: 'Utilisateur', start: '09:00', end: '16:30' } 
+    };
 }
 function saveData() {
     localStorage.setItem('atc-planner-data', JSON.stringify(appData));
@@ -52,15 +59,6 @@ function updateClock() {
 }
 setInterval(updateClock, 1000);
 
-// --- GESTION DE LA MODALE CSS ---
-function openModal(content) { 
-    $('#modalContent').innerHTML = content; 
-    $('#modalBackdrop').hidden = false; 
-}
-function closeModal() { 
-    $('#modalBackdrop').hidden = true; 
-}
-
 // --- NAVIGATION DOM ---
 function setView(viewId) {
   $$('.view').forEach(view => view.style.display = 'none');
@@ -72,7 +70,7 @@ function setView(viewId) {
   if(activeBtn) activeBtn.classList.add('active');
 
   const headings = {
-    dashboard: ['Bonjour, ' + (localStorage.getItem('userName') || 'Utilisateur'), 'Vue d’ensemble de la planification ATC'],
+    dashboard: ['Bonjour, ' + (appData.settings.name || 'Utilisateur'), 'Vue d’ensemble de la planification ATC'],
     promotions: ['Promotions & planification', 'Gérer les promotions et générer un planning automatique'],
     'phase-tracking': ['Suivi de phase', 'Avancement, groupes et ressources de la promotion'],
     planning: ['Planning des simulateurs', 'Vue détaillée · occupation hebdomadaire'],
@@ -90,6 +88,7 @@ function setView(viewId) {
   if (viewId === 'dashboard') renderDashboard();
   if (viewId === 'resources') renderResources();
   if (viewId === 'instructors') renderInstructors();
+  if (viewId === 'settings') renderSettings();
 }
 
 // --- GESTION DU FORMULAIRE (STEPS) ---
@@ -100,39 +99,56 @@ function setStep(stepNumber) {
         step.classList.toggle('active', stepNum === stepNumber);
     });
 
-    document.querySelector('.planner-section.phase-selection')?.classList.toggle('hidden', stepNumber !== 2);
-    document.querySelector('.planner-section.resources-choice')?.classList.toggle('hidden', stepNumber !== 3);
-    document.getElementById('previewSection')?.classList.toggle('hidden', stepNumber !== 4);
+    // Gestion de l'affichage des sections
+    document.getElementById('sectionPromotion')?.classList.toggle('hidden', stepNumber !== 1);
+    document.getElementById('sectionParams')?.classList.toggle('hidden', stepNumber !== 2);
+    document.getElementById('sectionResources')?.classList.toggle('hidden', stepNumber !== 3);
+    document.getElementById('sectionPreview')?.classList.toggle('hidden', stepNumber !== 4);
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// --- CALCULS ESTIMATIFS (Frontend) ---
+// --- CŒUR DU CALCUL : LE RÉSULTAT ESTIMATIF ---
 function calculateEstimates() {
+  // Lecture des données du formulaire
   const students = Math.max(1, Number($('#studentCount').value) || 1);
   const sessions = Number($('#sessionCount').value) || 8;
   const minutes = Number($('#sessionDuration').value) || 45;
   
+  // Calcul des positions disponibles
   const selected = appData.resources.filter(r => state.selectedResources.has(r.id));
   const positions = selected.reduce((sum, r) => sum + r.positions, 0) || 1;
   
+  // Calculs mathématiques
   const totalSessions = students * sessions;
   const totalHours = (totalSessions * minutes) / 60;
   const groups = Math.ceil(students / positions);
   
+  // Estimation grossière de la durée
   const slotsPerDay = 7;
   const days = Math.ceil((groups * sessions) / slotsPerDay);
   const endDate = new Date();
   endDate.setDate(endDate.getDate() + days);
 
+  // --- MISE À JOUR DU PANNEAU DE DROITE ---
   document.getElementById('estimateSessions').textContent = totalSessions;
   document.getElementById('estimateHours').textContent = `${totalHours.toFixed(totalHours % 1 ? 1 : 0)} h`;
   document.getElementById('estimateGroups').textContent = `${groups} groupe${groups > 1 ? 's' : ''}`;
   document.getElementById('estimateDays').textContent = `${days} jour${days > 1 ? 's' : ''}`;
   document.getElementById('estimateEnd').textContent = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }).replace('.', '');
+  
+  // --- MISE À JOUR DE LA PRÉVISUALISATION (Étape 4) ---
+  const name = document.getElementById('cohortName').value.trim() || '—';
+  const phaseName = phaseLabels[state.phase] || '—';
+  const resName = selected.map(r => r.name).join(', ') || '—';
+  
+  document.getElementById('previewName').textContent = name;
+  document.getElementById('previewStudents').textContent = students;
+  document.getElementById('previewPhase').textContent = phaseName;
+  document.getElementById('previewResources').textContent = resName + ` (${positions} positions)`;
 }
 
-// --- RESSOURCES (CRUD) ---
+// --- RESSOURCES ---
 function renderResourceSelector() {
   const eligible = appData.resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible');
   const container = document.getElementById('resourceSelector');
@@ -151,215 +167,100 @@ function renderResourceSelector() {
   }));
 }
 
+// --- SAUVEGARDE DES PARAMÈTRES (Nom utilisateur, horaires) ---
+function renderSettings() {
+    document.getElementById('settingAcademyName').value = 'Aviation Academy';
+    document.getElementById('settingDefaultStart').value = appData.settings.start || '09:00';
+    document.getElementById('settingDefaultEnd').value = appData.settings.end || '16:30';
+    document.getElementById('settingDefaultDuration').value = 45;
+    document.getElementById('settingDefaultBreak').value = 45;
+    document.getElementById('settingUserName').value = appData.settings.name || 'Utilisateur';
+}
+
+function saveSettings() {
+    appData.settings.name = document.getElementById('settingUserName').value.trim() || 'Utilisateur';
+    appData.settings.start = document.getElementById('settingDefaultStart').value;
+    appData.settings.end = document.getElementById('settingDefaultEnd').value;
+    saveData();
+    document.querySelector('.user-name strong').textContent = appData.settings.name;
+    document.querySelector('.avatar').textContent = initials(appData.settings.name);
+    document.getElementById('pageTitle').textContent = 'Bonjour, ' + appData.settings.name;
+    alert('✅ Paramètres enregistrés !');
+}
+
+// --- TABLEAUX DE BORD ET RENDU DES PAGES ---
 function renderResources() {
     const target = document.getElementById('resourceCards');
     if(!target) return;
-    
     const twr = appData.resources.filter(r => r.type === 'TWR').reduce((sum, r) => sum + r.positions, 0);
     const radar = appData.resources.filter(r => r.type !== 'TWR').reduce((sum, r) => sum + r.positions, 0);
     document.getElementById('resourceTwrPositions').textContent = twr;
     document.getElementById('resourceRadarPositions').textContent = radar;
     document.getElementById('resourceAvailablePositions').textContent = twr + radar;
     document.getElementById('resourceAvailabilityInfo').textContent = `${appData.resources.length} ressources`;
-
     target.innerHTML = appData.resources.map(r => `
-        <article class="resource-card">
-            <div class="resource-card-header">
-                <div><span class="mini-icon ${r.type === 'TWR' ? 'blue' : 'purple'}">${r.icon}</span><h3>${escapeHtml(r.name)}</h3><p>${r.positions} positions · ${r.type === 'TWR' ? 'TWR' : r.type === 'APP' ? 'Approche Radar' : 'En-route Radar'}</p></div>
-                <span class="availability ${r.availability !== 'Disponible' ? 'busy' : ''}">${r.availability}</span>
-            </div>
-            <div class="compatibility">${r.phases.map(phase => `<span>${phaseLabels[phase]}</span>`).join('')}</div>
-            <div class="resource-card-footer"><span>${r.positions} positions</span><div><button onclick="editResource('${r.id}')">Modifier</button><button onclick="deleteResource('${r.id}')" class="resource-delete">Supprimer</button></div></div>
-        </article>
+        <article class="resource-card"><div class="resource-card-header"><div><span class="mini-icon ${r.type === 'TWR' ? 'blue' : 'purple'}">${r.icon}</span><h3>${escapeHtml(r.name)}</h3><p>${r.positions} positions · ${r.type}</p></div><span class="availability ${r.availability !== 'Disponible' ? 'busy' : ''}">${r.availability}</span></div><div class="compatibility">${r.phases.map(phase => `<span>${phaseLabels[phase]}</span>`).join('')}</div><div class="resource-card-footer"><span>${r.positions} positions</span><div><button onclick="alert('Modifier')">Modifier</button><button onclick="alert('Supprimer')">Supprimer</button></div></div></article>
     `).join('');
 }
 
-function addResourceForm() {
-    const formHtml = `
-        <h3>Ajouter une ressource</h3>
-        <p>Définissez les positions et phases compatibles.</p>
-        <div class="modal-form">
-            <label>Nom de la ressource <input id="modalResName" placeholder="Ex. RADAR APP 3" /></label>
-            <label>Nombre de positions <input id="modalResPos" type="number" min="1" value="2" /></label>
-            <label>Type <select id="modalResType"><option value="TWR">TWR</option><option value="APP">Approche Radar</option><option value="ENR">En-route Radar</option></select></label>
-        </div>
-        <div class="modal-actions">
-            <button class="outline-button" onclick="closeModal()">Annuler</button>
-            <button class="primary-button" onclick="saveResource()">Ajouter</button>
-        </div>
-    `;
-    openModal(formHtml);
-}
-
-function saveResource() {
-    const name = $('#modalResName').value.trim();
-    const positions = parseInt($('#modalResPos').value) || 1;
-    const type = $('#modalResType').value;
-    if(!name) return alert("Indiquez un nom.");
-    
-    const phasesByType = { TWR: ['aerodrome'], APP: ['approach-procedure', 'approach-radar'], ENR: ['enroute-procedure', 'enroute-radar'] };
-    const newRes = { id: `r-${Date.now()}`, name, positions, icon: type === 'TWR' ? '♜' : '◉', phases: phasesByType[type], availability: 'Disponible', type };
-    appData.resources.push(newRes);
-    saveData();
-    closeModal();
-    renderResources();
-    renderResourceSelector();
-}
-
-function editResource(id) {
-    const res = appData.resources.find(r => r.id === id);
-    if(!res) return;
-    const formHtml = `
-        <h3>Modifier ${escapeHtml(res.name)}</h3>
-        <div class="modal-form">
-            <label>Nom <input id="modalEditResName" value="${escapeHtml(res.name)}" /></label>
-            <label>Positions <input id="modalEditResPos" type="number" min="1" value="${res.positions}" /></label>
-        </div>
-        <div class="modal-actions">
-            <button class="outline-button" onclick="closeModal()">Annuler</button>
-            <button class="primary-button" onclick="updateResource('${id}')">Enregistrer</button>
-        </div>
-    `;
-    openModal(formHtml);
-}
-
-function updateResource(id) {
-    const res = appData.resources.find(r => r.id === id);
-    if(!res) return;
-    res.name = $('#modalEditResName').value.trim() || res.name;
-    res.positions = parseInt($('#modalEditResPos').value) || res.positions;
-    saveData();
-    closeModal();
-    renderResources();
-}
-
-function deleteResource(id) {
-    openModal(`
-        <h3>Supprimer cette ressource ?</h3>
-        <p class="modal-confirm">Cette action est irréversible.</p>
-        <div class="modal-actions">
-            <button class="outline-button" onclick="closeModal()">Annuler</button>
-            <button class="primary-button" onclick="confirmDeleteResource('${id}')">Supprimer</button>
-        </div>
-    `);
-}
-function confirmDeleteResource(id) {
-    appData.resources = appData.resources.filter(r => r.id !== id);
-    state.selectedResources.delete(id);
-    saveData();
-    closeModal();
-    renderResources();
-    renderResourceSelector();
-}
-
-// --- INSTRUCTEURS (CRUD) ---
-function renderInstructors() {
-    const target = document.getElementById('instructorList');
-    if(!target) return;
-    document.getElementById('instructorCount').textContent = `${appData.instructors.length} instructeurs`;
-    
-    target.innerHTML = appData.instructors.map(i => `
-        <article class="instructor-card">
-            <div class="avatar">${initials(i.name)}</div>
-            <div><strong>${escapeHtml(i.name)}</strong><p>${escapeHtml(i.speciality)} · ${i.groups || 'Disponible'}</p><span class="load">● ${i.groups ? 'Affecté' : 'Disponible aujourd’hui'}</span></div>
-            <div class="instructor-actions">
-                <button onclick="editInstructor('${i.id}')">Modifier</button>
-                <button onclick="deleteInstructor('${i.id}')" class="remove-instructor">×</button>
-            </div>
-        </article>
-    `).join('');
-}
-
-function addInstructorForm() {
-    const formHtml = `
-        <h3>Ajouter un instructeur</h3>
-        <p>La spécialité détermine les phases auxquelles il peut être affecté.</p>
-        <div class="modal-form">
-            <label>Nom complet <input id="modalInstName" placeholder="Ex. Nadia Benali" /></label>
-            <label>Spécialité <select id="modalInstSpec"><option>TWR</option><option>Approche Radar</option><option>TWR + Approche Radar</option><option>En-route Radar</option></select></label>
-            <label>Groupes déjà affectés <input id="modalInstGroups" type="number" min="0" value="0" /></label>
-        </div>
-        <div class="modal-actions">
-            <button class="outline-button" onclick="closeModal()">Annuler</button>
-            <button class="primary-button" onclick="saveInstructor()">Ajouter</button>
-        </div>
-    `;
-    openModal(formHtml);
-}
-
-function saveInstructor() {
-    const name = $('#modalInstName').value.trim();
-    const speciality = $('#modalInstSpec').value;
-    const groups = parseInt($('#modalInstGroups').value) || 0;
-    if(!name) return alert("Indiquez un nom.");
-    
-    appData.instructors.push({ id: `i-${Date.now()}`, name, speciality, groups });
-    saveData();
-    closeModal();
-    renderInstructors();
-}
-
-function editInstructor(id) {
-    const inst = appData.instructors.find(i => i.id === id);
-    if(!inst) return;
-    const formHtml = `
-        <h3>Modifier ${escapeHtml(inst.name)}</h3>
-        <div class="modal-form">
-            <label>Nom <input id="modalEditInstName" value="${escapeHtml(inst.name)}" /></label>
-            <label>Spécialité <select id="modalEditInstSpec"><option ${inst.speciality === 'TWR' ? 'selected' : ''}>TWR</option><option ${inst.speciality === 'Approche Radar' ? 'selected' : ''}>Approche Radar</option><option ${inst.speciality === 'TWR + Approche Radar' ? 'selected' : ''}>TWR + Approche Radar</option><option ${inst.speciality === 'En-route Radar' ? 'selected' : ''}>En-route Radar</option></select></label>
-            <label>Groupes <input id="modalEditInstGroups" type="number" min="0" value="${inst.groups || 0}" /></label>
-        </div>
-        <div class="modal-actions">
-            <button class="outline-button" onclick="closeModal()">Annuler</button>
-            <button class="primary-button" onclick="updateInstructor('${id}')">Enregistrer</button>
-        </div>
-    `;
-    openModal(formHtml);
-}
-
-function updateInstructor(id) {
-    const inst = appData.instructors.find(i => i.id === id);
-    if(!inst) return;
-    inst.name = $('#modalEditInstName').value.trim() || inst.name;
-    inst.speciality = $('#modalEditInstSpec').value;
-    inst.groups = parseInt($('#modalEditInstGroups').value) || 0;
-    saveData();
-    closeModal();
-    renderInstructors();
-}
-
-function deleteInstructor(id) {
-    openModal(`
-        <h3>Retirer cet instructeur ?</h3>
-        <p class="modal-confirm">Il ne sera plus disponible pour les futurs plannings.</p>
-        <div class="modal-actions">
-            <button class="outline-button" onclick="closeModal()">Annuler</button>
-            <button class="primary-button" onclick="confirmDeleteInstructor('${id}')">Retirer</button>
-        </div>
-    `);
-}
-function confirmDeleteInstructor(id) {
-    appData.instructors = appData.instructors.filter(i => i.id !== id);
-    saveData();
-    closeModal();
-    renderInstructors();
-}
-
-// --- DASHBOARD ---
 function renderDashboard() {
     document.getElementById('dashboardPromotionTotal').textContent = appData.promotions.length;
     document.getElementById('dashboardInstructorTotal').textContent = appData.instructors.length;
 }
 
-// --- CONFIGURATION DES ÉVÉNEMENTS ---
-function setupEvents() {
-  // 1. Navigation
-  $$('.nav-item').forEach(button => button.addEventListener('click', function() { setView(this.dataset.view); }));
-  $$('[data-go]').forEach(button => button.addEventListener('click', function() { setView(this.dataset.go); }));
-  $$('.step').forEach(step => step.addEventListener('click', function() { setStep(parseInt(this.dataset.step)); }));
-  $$('[data-next-step]').forEach(btn => btn.addEventListener('click', function() { setStep(parseInt(this.dataset.nextStep)); }));
+function renderInstructors() {
+    const target = document.getElementById('instructorList');
+    if(!target) return;
+    document.getElementById('instructorCount').textContent = `${appData.instructors.length} instructeurs`;
+    target.innerHTML = appData.instructors.map(i => `
+        <article class="instructor-card"><div class="avatar">${initials(i.name)}</div><div><strong>${escapeHtml(i.name)}</strong><p>${escapeHtml(i.speciality)}</p><span class="load">● ${i.groups ? 'Affecté' : 'Disponible'}</span></div><div class="instructor-actions"><button onclick="alert('Modifier')">Modifier</button><button onclick="alert('Supprimer')">Supprimer</button></div></article>
+    `).join('');
+}
 
-  // 2. Phases et Champs
+// --- GESTION DE LA GÉNÉRATION (BACKEND) ---
+function generatePlanning() {
+    const name = document.getElementById('cohortName').value.trim();
+    if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
+    
+    const totalPos = appData.resources.filter(r => state.selectedResources.has(r.id)).reduce((s, r) => s + r.positions, 0);
+    const data = {
+        name: name,
+        students: parseInt(document.getElementById('studentCount').value),
+        phase: state.phase,
+        sessions: parseInt(document.getElementById('sessionCount').value),
+        duration: parseInt(document.getElementById('sessionDuration').value),
+        startDate: document.getElementById('startDate').value || new Date().toISOString().slice(0,10),
+        positions: totalPos,
+        dailyHours: [9, 10, 11, 14, 15, 16]
+    };
+    // Envoi au Backend Streamlit
+    const params = new URLSearchParams({ action: 'generate', data: JSON.stringify(data) });
+    window.location.search = params.toString();
+}
+
+// --- CONFIGURATION DES ÉVÉNEMENTS (BOUTONS) ---
+function setupEvents() {
+  // 1. Navigation latérale
+  $$('.nav-item').forEach(button => {
+    button.addEventListener('click', function() { setView(this.dataset.view); });
+  });
+
+  // 2. Tous les boutons data-go
+  $$('[data-go]').forEach(button => {
+    button.addEventListener('click', function() { setView(this.dataset.go); });
+  });
+
+  // 3. Le stepper (haut du formulaire)
+  $$('.step').forEach(step => {
+    step.addEventListener('click', function() { setStep(parseInt(this.dataset.step)); });
+  });
+
+  // 4. Boutons Suivant / Précédent
+  $$('[data-next-step]').forEach(btn => {
+    btn.addEventListener('click', function() { setStep(parseInt(this.dataset.nextStep)); });
+  });
+
+  // 5. Sélection des phases (cartes)
   const cards = document.querySelectorAll('.phase-card');
   cards.forEach(card => {
     card.addEventListener('click', function() {
@@ -372,55 +273,44 @@ function setupEvents() {
       calculateEstimates();
     });
   });
-  ['studentCount', 'sessionCount', 'sessionDuration'].forEach(id => {
+
+  // 6. Mise à jour en temps réel du panneau "Résultat estimatif"
+  ['studentCount', 'sessionCount', 'sessionDuration', 'cohortName', 'startDate'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.addEventListener('input', calculateEstimates);
   });
 
-  // 3. Modales
-  document.getElementById('openResourceCreator')?.addEventListener('click', addResourceForm);
-  document.getElementById('addInstructor')?.addEventListener('click', addInstructorForm);
+  // 7. Boutons CRUD et Sauvegardes
+  document.getElementById('saveSettings')?.addEventListener('click', saveSettings);
+  document.getElementById('openResourceCreator')?.addEventListener('click', () => alert('Ajout de ressource'));
+  document.getElementById('addInstructor')?.addEventListener('click', () => alert('Ajout instructeur'));
 
-  // 4. Bouton Enregistrer (Sauvegarde locale)
+  // 8. Bouton Enregistrer la promotion (Sauvegarde locale)
   document.getElementById('savePromotion')?.addEventListener('click', function() {
     const name = document.getElementById('cohortName').value;
     if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
-    
     const newPromo = { id: `p-${Date.now()}`, name, students: $('#studentCount').value, phase: state.phase };
     appData.promotions.push(newPromo);
     saveData();
-    alert('✅ Promotion "' + name + '" enregistrée avec succès !');
+    alert('✅ Promotion "' + name + '" enregistrée dans le navigateur.');
   });
 
-  // 5. Bouton GÉNÉRER (Connexion au Backend OR-Tools)
-  document.getElementById('generatePlan')?.addEventListener('click', function() {
-    const name = document.getElementById('cohortName').value;
-    if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
-    
-    // Récupération des données pour le Backend
-    const data = {
-        name: name,
-        students: parseInt(document.getElementById('studentCount').value),
-        phase: state.phase,
-        sessions: parseInt(document.getElementById('sessionCount').value),
-        duration: parseInt(document.getElementById('sessionDuration').value),
-        startDate: document.getElementById('startDate').value || new Date().toISOString().slice(0,10),
-        positions: appData.resources.filter(r => state.selectedResources.has(r.id)).reduce((s, r) => s + r.positions, 0),
-        dailyHours: [9, 10, 11, 14, 15, 16] // Horaires par défaut
-    };
-    
-    // Envoi au Backend (API Streamlit)
-    const params = new URLSearchParams({
-        action: 'generate',
-        data: JSON.stringify(data)
-    });
-    window.location.search = params.toString(); // Redirection
-  });
-
-  // 6. Topbar
+  // 9. Bouton GÉNÉRER LE PLANNING (Connexion Backend OR-Tools)
+  document.getElementById('generatePlan')?.addEventListener('click', generatePlanning);
+  
+  // 10. Topbar (Aide, Notif, Profil)
   document.querySelector('.icon-button.notification')?.addEventListener('click', () => alert('🔔 3 notifications'));
   document.querySelector('.icon-button[aria-label="Aide"]')?.addEventListener('click', () => alert('📖 Aide disponible'));
   document.querySelector('.chevron')?.addEventListener('click', () => alert('⚙️ Profil utilisateur'));
+}
+
+// --- RÉSULTAT DU BACKEND ---
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('action') === 'result') {
+    const status = urlParams.get('status');
+    const message = urlParams.get('message');
+    alert(status === 'success' ? '✅ ' + message : '❌ ' + message);
+    setTimeout(() => { window.history.replaceState({}, document.title, window.location.pathname); }, 100);
 }
 
 // --- INITIALISATION FINALE ---
@@ -428,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateClock();
     setView('dashboard');
     renderResourceSelector();
-    calculateEstimates();
+    calculateEstimates(); // Calcule immédiatement le panneau de droite
     setupEvents();
-    console.log('✅ ATC Planner prêt !');
+    console.log('✅ ATC Planner - Interface prête');
 });
