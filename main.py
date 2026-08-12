@@ -1,6 +1,4 @@
-Voici le code complet et corrigé du fichier **`main.py`** prêt à être copié-collé :
 
-```python
 import streamlit as st
 
 # Configuration de la page
