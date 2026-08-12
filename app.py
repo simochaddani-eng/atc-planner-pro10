@@ -1,4 +1,4 @@
-# app.py (Version ULTIME avec chargement externe du JS)
+# app.py
 import streamlit as st
 import os
 
@@ -18,14 +18,14 @@ def load_file(filename):
 
 html_content = load_file('index.html')
 css_content = load_file('styles.css')
+js_content = load_file('app.js')
 
-# --- 2. Injection du CSS uniquement ---
+# --- 2. Injection du CSS ---
 html_content = html_content.replace('<link rel="stylesheet" href="styles.css" />', f'<style>{css_content}</style>')
 
-# --- 3. UNE MODIFICATION CRUCIALE DANS LE HTML ---
-# Nous remplaçons la balise script externe par une promesse de chargement dynamique
-# Cela permet de garantir que le JS se chargera correctement sur le serveur
-js_loader = """
+# --- 3. Injection du JS de façon sécurisée ---
+# Solution ultime : On demande au navigateur de charger le fichier JS externe directement
+js_loader = f"""
 <script>
     // Chargement dynamique du fichier app.js externe
     var script = document.createElement('script');
@@ -37,10 +37,9 @@ js_loader = """
 """
 html_content = html_content.replace('<script src="app.js"></script>', js_loader)
 
-# --- 4. CSS pour masquer Streamlit (Full Page) ---
+# --- 4. CSS pour masquer Streamlit ---
 st.markdown("""
 <style>
-    /* On force l'iframe à prendre toute la page */
     iframe {
         width: 100vw;
         height: 100vh;
@@ -52,7 +51,6 @@ st.markdown("""
         left: 0;
         z-index: 9999;
     }
-    /* On cache le reste de Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
