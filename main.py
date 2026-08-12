@@ -1,4 +1,3 @@
-
 import streamlit as st
 
 # Configuration de la page
@@ -71,5 +70,3 @@ elif menu == "Planning des simulateurs":
     planning_view.render()
 elif menu == "Suivi des phases":
     phase_management.render()
-
-```
