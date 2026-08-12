@@ -1,69 +1,58 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 
 def render():
     st.markdown("## ✈️ ATC Planner – Tableau de bord")
     
-    # KPIs Top
+    # --- CALCUL DYNAMIQUE DES KPIs ---
+    nb_promotions = len(st.session_state.get("promotions", []))
+    total_etudiants = sum([p.get("Effectif", 0) for p in st.session_state.get("promotions", [])])
+    
+    nb_instructeurs = len(st.session_state.get("instructors", []))
+    inst_dispos = len([i for i in st.session_state.get("instructors", []) if i.get("Statut") == "Disponible"])
+    
+    # 1. Cartes Métriques (Top Bar dynamique)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown("""<div class="kpi-card">
-            <div class="kpi-title">Promotions actives</div>
-            <div class="kpi-value">4</div>
-            <span style="color:#64748B; font-size:12px;">128 Étudiants au total</span>
+        st.markdown(f"""<div style="background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 5px solid #2563EB;">
+            <div style="font-size: 14px; color: #64748B;">Promotions actives</div>
+            <div style="font-size: 24px; font-weight: bold; color: #0F172A;">{nb_promotions}</div>
+            <span style="color:#64748B; font-size:12px;">{total_etudiants} Étudiants au total</span>
         </div>""", unsafe_allow_html=True)
     with c2:
-        st.markdown("""<div class="kpi-card">
-            <div class="kpi-title">Simulateurs disponibles</div>
-            <div class="kpi-value">6 / 6</div>
+        st.markdown("""<div style="background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 5px solid #10B981;">
+            <div style="font-size: 14px; color: #64748B;">Simulateurs disponibles</div>
+            <div style="font-size: 24px; font-weight: bold; color: #0F172A;">6 / 6</div>
             <span style="color:#10B981; font-size:12px;">100% Fonctionnels</span>
         </div>""", unsafe_allow_html=True)
     with c3:
-        st.markdown("""<div class="kpi-card">
-            <div class="kpi-title">Instructeurs affectés</div>
-            <div class="kpi-value">11</div>
-            <span style="color:#64748B; font-size:12px;">3 disponibles aujourd'hui</span>
+        st.markdown(f"""<div style="background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 5px solid #F59E0B;">
+            <div style="font-size: 14px; color: #64748B;">Instructeurs affectés</div>
+            <div style="font-size: 24px; font-weight: bold; color: #0F172A;">{nb_instructeurs}</div>
+            <span style="color:#64748B; font-size:12px;">{inst_dispos} disponibles aujourd'hui</span>
         </div>""", unsafe_allow_html=True)
     with c4:
-        st.markdown("""<div class="kpi-card">
-            <div class="kpi-title">Phases en cours</div>
-            <div class="kpi-value">5</div>
-            <span style="color:#2563EB; font-size:12px;">18 séances aujourd'hui</span>
+        st.markdown("""<div style="background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 5px solid #8B5CF6;">
+            <div style="font-size: 14px; color: #64748B;">Phases en cours</div>
+            <div style="font-size: 24px; font-weight: bold; color: #0F172A;">0</div>
+            <span style="color:#2563EB; font-size:12px;">En attente de planification</span>
         </div>""", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Section Médiane
-    col_capa, col_gantt = st.columns([1, 1])
+    # 2. Section Aperçu Rapide
+    col_g, col_d = st.columns([2, 1])
     
-    with col_capa:
-        st.markdown("### Capacité – Promotion P2025-A")
-        mc1, mc2, mc3, mc4 = st.columns(4)
-        mc1.metric("Total séances", "240", "30 étud. × 8")
-        mc2.metric("Heures-position", "180h", "240 × 45 min")
-        mc3.metric("Rotations", "45", "180h ÷ 4 pos.")
-        mc4.metric("Durée estimée", "11.25 j", "16h/j")
-        
-    with col_gantt:
-        st.markdown("### Aperçu planning")
-        df_gantt = pd.DataFrame([
-            dict(Task="P2025-A", Start='2026-08-10', Finish='2026-08-21', Phase='Aérodrome'),
-            dict(Task="P2025-B", Start='2026-08-12', Finish='2026-08-25', Phase='Approche Radar'),
-            dict(Task="P2025-C", Start='2026-08-15', Finish='2026-08-28', Phase='En-route Radar'),
-        ])
-        fig = px.timeline(df_gantt, x_start="Start", x_end="Finish", y="Task", color="Phase", height=180)
-        fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
-
-    # Grid Occupation
-    st.markdown("### Occupation des simulateurs – Aujourd'hui")
-    simu_data = {
-        "Simulateur": ["TWR 1", "TWR 2", "TWR 3", "TWR 4", "RADAR 1 (4 pos.)", "RADAR 2"],
-        "08h00 - 09h30": ["P2025-A", "P2025-B", "P2025-C", "P2025-A", "Disponible", "P2025-B"],
-        "09h45 - 11h15": ["P2025-B", "P2025-A", "P2025-A", "P2025-C", "Disponible", "P2025-A"],
-        "11h30 - 13h00": ["P2025-C", "P2025-C", "P2025-B", "P2025-B", "Actif (Approche)", "P2025-C"],
-        "13h45 - 15h15": ["P2025-A", "P2025-B", "P2025-C", "P2025-A", "Actif (Approche)", "P2025-A"],
-        "15h30 - 17h00": ["P2025-B", "P2025-A", "P2025-A", "P2025-C", "Actif (En-route)", "P2025-B"],
-    }
-    st.dataframe(pd.DataFrame(simu_data), use_container_width=True, hide_index=True)
+    with col_g:
+        st.markdown("### 📋 Liste des Promotions")
+        if st.session_state["promotions"]:
+            st.dataframe(pd.DataFrame(st.session_state["promotions"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("Aucune promotion n'est actuellement enregistrée. Allez dans 'Gestion des données' pour en ajouter.")
+            
+    with col_d:
+        st.markdown("### 👨‍🏫 Aperçu des Instructeurs")
+        if st.session_state["instructors"]:
+            st.dataframe(pd.DataFrame(st.session_state["instructors"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("Aucun instructeur affecté pour le moment.")
