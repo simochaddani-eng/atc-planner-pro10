@@ -1,4 +1,4 @@
-// app.js (Version Streamlit)
+// app.js (Version Finale)
 const defaultResources = [
   { id: 'twr', name: 'TWR 1–4', positions: 4, icon: '♜', phases: ['aerodrome'], availability: 'Disponible', type: 'TWR' },
   { id: 'radar1', name: 'RADAR 1', positions: 4, icon: '◉', phases: ['approach-procedure', 'approach-radar'], availability: 'Disponible', type: 'APP' },
@@ -20,7 +20,7 @@ const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(sel
 const defaultPromotions = [];
 const defaultInstructors = [];
 const storageKey = 'atc-planner-management-v3';
-const defaultSettings = { academyName: 'Aviation Academy', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45 };
+const defaultSettings = { academyName: 'Aviation Academy', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45, userName: 'Utilisateur' };
 function loadManagementData() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('atc-planner-management-v2') || localStorage.getItem('atc-planner-management-v1'));
@@ -34,6 +34,13 @@ function loadManagementData() {
   return { promotions: defaultPromotions, instructors: defaultInstructors, resources: defaultResources, students: [], settings: defaultSettings };
 }
 const management = loadManagementData();
+
+// --- CORRECTION 1 : On vérifie le nom d'utilisateur ---
+if (!management.settings.userName) {
+    management.settings.userName = "Utilisateur";
+    persistManagementData();
+}
+
 let promotions = management.promotions;
 let instructors = management.instructors;
 let resources = management.resources;
@@ -593,11 +600,22 @@ function renderSettings() {
   $('#settingDefaultEnd').value = settings.defaultEnd;
   $('#settingDefaultDuration').value = settings.defaultDuration;
   $('#settingDefaultBreak').value = settings.defaultBreak;
+  $('#settingUserName').value = settings.userName;
 }
 function saveSettings() {
-  settings = { academyName: $('#settingAcademyName').value.trim() || 'Aviation Academy', defaultStart: $('#settingDefaultStart').value || '09:00', defaultEnd: $('#settingDefaultEnd').value || '16:30', defaultDuration: Number($('#settingDefaultDuration').value), defaultBreak: Number($('#settingDefaultBreak').value) };
+  settings = { 
+    academyName: $('#settingAcademyName').value.trim() || 'Aviation Academy', 
+    defaultStart: $('#settingDefaultStart').value || '09:00', 
+    defaultEnd: $('#settingDefaultEnd').value || '16:30', 
+    defaultDuration: Math.max(1, Number($('#settingDefaultDuration').value) || 45), 
+    defaultBreak: Math.max(0, Number($('#settingDefaultBreak').value) || 45),
+    userName: $('#settingUserName').value.trim() || 'Utilisateur'
+  };
   document.querySelector('.brand-name').innerHTML = `${escapeHtml(settings.academyName).toUpperCase().replace(' ', '<br />')}`;
-  persistManagementData(); showToast('Paramètres enregistrés. Ils seront utilisés pour les nouvelles promotions.');
+  document.querySelector('.user-name strong').textContent = settings.userName;
+  document.querySelector('.avatar').textContent = initials(settings.userName);
+  persistManagementData(); 
+  showToast('Paramètres enregistrés.');
 }
 
 function instructorModal(instructor = null) {
@@ -674,8 +692,24 @@ function renderInstructors() {
 function setView(viewId) {
   $$('.view').forEach(view => view.classList.toggle('active-view', view.id === viewId));
   $$('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.view === viewId));
-  const headings = {dashboard:['Bonjour, Alexandre','Vue d’ensemble de la planification ATC'], promotions:['Promotions & planification','Gérer les promotions et générer un planning automatique'], 'phase-tracking':['Suivi de phase','Avancement, groupes et ressources de la promotion'], planning:['Planning des simulateurs','Vue détaillée · occupation hebdomadaire'], resources:['Gestion des simulateurs','Positions disponibles et polyvalentes'], sessions:['Séances de simulation','Suivi des rotations et des exercices'], instructors:['Instructeurs','Disponibilités et affectations'], students:['Étudiants','Suivi des promotions'], reports:['Rapports','Capacité et performance'], settings:['Paramètres','Configuration de la plateforme']};
-  $('#pageTitle').textContent = headings[viewId][0]; $('#pageSubtitle').textContent = headings[viewId][1];
+  
+  // --- CORRECTION 2 : Le nom est dynamique ---
+  const userName = settings.userName || 'Utilisateur';
+  const headings = {
+    dashboard: [`Bonjour, ${userName}`, 'Vue d’ensemble de la planification ATC'], 
+    promotions: ['Promotions & planification','Gérer les promotions et générer un planning automatique'], 
+    'phase-tracking':['Suivi de phase','Avancement, groupes et ressources de la promotion'], 
+    planning:['Planning des simulateurs','Vue détaillée · occupation hebdomadaire'], 
+    resources:['Gestion des simulateurs','Positions disponibles et polyvalentes'], 
+    sessions:['Séances de simulation','Suivi des rotations et des exercices'], 
+    instructors:['Instructeurs','Disponibilités et affectations'], 
+    students:['Étudiants','Suivi des promotions'], 
+    reports:['Rapports','Capacité et performance'], 
+    settings:['Paramètres','Configuration de la plateforme']
+  };
+  $('#pageTitle').textContent = headings[viewId][0]; 
+  $('#pageSubtitle').textContent = headings[viewId][1];
+  
   if (viewId === 'dashboard') renderDashboard();
   if (viewId === 'phase-tracking') renderPhaseTracking();
   if (viewId === 'planning') { renderWeekGrid(); renderGeneratedPlan(); }
@@ -714,6 +748,18 @@ function setupEvents() {
   });
   $('#regenerateGroups').addEventListener('click', () => { renderPhaseTracking(); showToast('Groupes recalculés selon les positions disponibles.'); });
   $('.menu-button').addEventListener('click', () => $('.sidebar').classList.toggle('open'));
+  
+  // --- CORRECTION 3 : Gestion des boutons de l'en-tête ---
+  document.querySelector('.icon-button.notification').addEventListener('click', () => {
+      showToast('🔔 3 notifications en attente de lecture.');
+  });
+  document.querySelector('.icon-button[aria-label="Aide"]').addEventListener('click', () => {
+      showToast('📖 Aide : Utilisez le menu "Promotions" pour créer un planning.');
+  });
+  document.querySelector('.chevron').addEventListener('click', () => {
+      showToast('⚙️ Menu profil (en cours de développement).');
+  });
+
   document.addEventListener('click', event => {
     const promotionButton = event.target.closest('[data-promo-action]');
     const phaseButton = event.target.closest('[data-set-phase]');
@@ -754,7 +800,6 @@ if (urlParams.get('action') === 'result') {
     } else {
         showToast('❌ ' + message);
     }
-    // Nettoyer l'URL
     setTimeout(() => {
         window.history.replaceState({}, document.title, window.location.pathname);
     }, 100);
