@@ -1,23 +1,30 @@
 import streamlit as st
 
-st.set_page_config(page_title="ATC Planner – Aviation Academy", layout="wide", page_icon="✈️")
+# 1. Configuration de la page
+st.set_page_config(
+    page_title="ATC Planner – Aviation Academy",
+    layout="wide",
+    page_icon="✈️"
+)
 
-# 1. Initialisation des données dynamiques dans le Session State
+# 2. Chargement du style CSS personnalisé
+def load_css(file_name):
+    try:
+        with open(file_name) as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        pass
+
+load_css("styles.css")
+
+# 3. Initialisation à VIDE des données dynamiques
 if "promotions" not in st.session_state:
-    st.session_state["promotions"] = [
-        {"Nom": "P2025-A", "Effectif": 30, "Statut": "En cours"},
-        {"Nom": "P2025-B", "Effectif": 28, "Statut": "En cours"},
-        {"Nom": "P2025-C", "Effectif": 30, "Statut": "À planifier"}
-    ]
+    st.session_state["promotions"] = []
 
 if "instructors" not in st.session_state:
-    st.session_state["instructors"] = [
-        {"Nom": "Sophie Bernard", "Spécialité": "TWR", "Statut": "Disponible"},
-        {"Nom": "Julien Moreau", "Spécialité": "RADAR", "Statut": "Disponible"},
-        {"Nom": "Thomas Leroy", "Spécialité": "TWR", "Statut": "Occupé"}
-    ]
+    st.session_state["instructors"] = []
 
-# Authentification
+# 4. Système d'authentification simple
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -35,10 +42,10 @@ if not st.session_state["authenticated"]:
                 st.error("Mot de passe incorrect.")
     st.stop()
 
-# Import des modules
+# 5. Importation des modules applicatifs
 from modules import dashboard, new_planning, planning_view, phase_management, management
 
-# Menu latéral
+# 6. Barre latérale (Menu de navigation)
 with st.sidebar:
     st.markdown("### ✈️ AVIATION ACADEMY")
     st.caption("Gestion & Planification ATC")
@@ -62,7 +69,7 @@ with st.sidebar:
         st.session_state["authenticated"] = False
         st.rerun()
 
-# Router
+# 7. Router principal
 if menu == "Tableau de bord":
     dashboard.render()
 elif menu == "Nouvelle planification":
