@@ -1,5 +1,6 @@
-# app.py (Version ancienne et ultra-stable)
+# app.py (Version ULTIME avec chargement externe du JS)
 import streamlit as st
+import os
 
 st.set_page_config(
     page_title="ATC Planner - Aviation Academy", 
@@ -7,7 +8,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- Chargement des fichiers locaux ---
+# --- 1. Lire le contenu des fichiers statiques ---
 def load_file(filename):
     try:
         with open(filename, 'r', encoding='utf-8') as f:
@@ -17,14 +18,26 @@ def load_file(filename):
 
 html_content = load_file('index.html')
 css_content = load_file('styles.css')
-js_content = load_file('app.js')
 
-# --- Injection du CSS et JS directement dans le HTML ---
-# Remplace les balises externes par le contenu inline pour garantir le fonctionnement
+# --- 2. Injection du CSS uniquement ---
 html_content = html_content.replace('<link rel="stylesheet" href="styles.css" />', f'<style>{css_content}</style>')
-html_content = html_content.replace('<script src="app.js"></script>', f'<script>{js_content}</script>')
 
-# --- CSS pour masquer l'interface de Streamlit (Full Page) ---
+# --- 3. UNE MODIFICATION CRUCIALE DANS LE HTML ---
+# Nous remplaçons la balise script externe par une promesse de chargement dynamique
+# Cela permet de garantir que le JS se chargera correctement sur le serveur
+js_loader = """
+<script>
+    // Chargement dynamique du fichier app.js externe
+    var script = document.createElement('script');
+    script.src = './app.js';
+    script.type = 'text/javascript';
+    document.head.appendChild(script);
+    console.log('✅ app.js chargé dynamiquement');
+</script>
+"""
+html_content = html_content.replace('<script src="app.js"></script>', js_loader)
+
+# --- 4. CSS pour masquer Streamlit (Full Page) ---
 st.markdown("""
 <style>
     /* On force l'iframe à prendre toute la page */
@@ -39,13 +52,12 @@ st.markdown("""
         left: 0;
         z-index: 9999;
     }
-    /* On cache tout le reste de Streamlit */
+    /* On cache le reste de Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- Affichage du composant ---
-# height=None permet à l'iframe de s'étendre à l'infini
+# --- 5. Affichage du composant ---
 st.components.v1.html(html_content, height=None, scrolling=True)
