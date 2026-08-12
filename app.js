@@ -1,4 +1,4 @@
-// app.js (Version ULTIME - Navigation + Gestion Ressources/Instructeurs + Horloge)
+// app.js (Version Finale avec Modale CSS & CRUD)
 
 // --- CONFIGURATION DE BASE ---
 const defaultResources = [
@@ -15,7 +15,6 @@ const phaseLabels = {
   'enroute-radar': 'En-route Radar'
 };
 
-// --- ÉTAT DE L'APPLICATION ---
 const state = { 
     phase: 'approach-radar', 
     selectedResources: new Set(['radar1']), 
@@ -32,6 +31,7 @@ function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({
 function initials(name) { return name.split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase(); }
 
 // --- GESTION DU STOCKAGE LOCAL (LOCALSTORAGE) ---
+let appData = loadData();
 function loadData() {
     try {
         const saved = JSON.parse(localStorage.getItem('atc-planner-data'));
@@ -39,12 +39,9 @@ function loadData() {
     } catch(e) {}
     return { resources: defaultResources, instructors: [], promotions: [] };
 }
-
-function saveData(data) {
-    localStorage.setItem('atc-planner-data', JSON.stringify(data));
+function saveData() {
+    localStorage.setItem('atc-planner-data', JSON.stringify(appData));
 }
-
-let appData = loadData();
 
 // --- HORLOGE EN TEMPS RÉEL ---
 function updateClock() {
@@ -54,6 +51,15 @@ function updateClock() {
     $('#todayTime').textContent = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 setInterval(updateClock, 1000);
+
+// --- GESTION DE LA MODALE CSS ---
+function openModal(content) { 
+    $('#modalContent').innerHTML = content; 
+    $('#modalBackdrop').hidden = false; 
+}
+function closeModal() { 
+    $('#modalBackdrop').hidden = true; 
+}
 
 // --- NAVIGATION DOM (CORRECTION DES BOUTONS) ---
 function setView(viewId) {
@@ -126,7 +132,7 @@ function calculateEstimates() {
   document.getElementById('estimateEnd').textContent = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }).replace('.', '');
 }
 
-// --- RESSOURCES (VUE COMPLÈTE) ---
+// --- RESSOURCES (CRUD AVEC MODALE) ---
 function renderResourceSelector() {
   const eligible = appData.resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible');
   const container = document.getElementById('resourceSelector');
@@ -163,30 +169,90 @@ function renderResources() {
                 <span class="availability ${r.availability !== 'Disponible' ? 'busy' : ''}">${r.availability}</span>
             </div>
             <div class="compatibility">${r.phases.map(phase => `<span>${phaseLabels[phase]}</span>`).join('')}</div>
-            <div class="resource-card-footer"><span>${r.positions} positions</span><div><button onclick="alert('Modifier ${escapeHtml(r.name)}')">Modifier</button><button onclick="deleteResource('${r.id}')" class="resource-delete">Supprimer</button></div></div>
+            <div class="resource-card-footer"><span>${r.positions} positions</span><div><button onclick="editResource('${r.id}')">Modifier</button><button onclick="deleteResource('${r.id}')" class="resource-delete">Supprimer</button></div></div>
         </article>
     `).join('');
 }
 
-function deleteResource(id) {
-    if(!confirm("Supprimer cette ressource ?")) return;
-    appData.resources = appData.resources.filter(r => r.id !== id);
-    state.selectedResources.delete(id);
-    saveData(appData);
-    renderResources();
+function addResourceForm() {
+    const formHtml = `
+        <h3>Ajouter une ressource</h3>
+        <p>Définissez les positions et phases compatibles.</p>
+        <div class="modal-form">
+            <label>Nom de la ressource <input id="modalResName" placeholder="Ex. RADAR APP 3" /></label>
+            <label>Nombre de positions <input id="modalResPos" type="number" min="1" value="2" /></label>
+            <label>Type <select id="modalResType"><option value="TWR">TWR</option><option value="APP">Approche Radar</option><option value="ENR">En-route Radar</option></select></label>
+        </div>
+        <div class="modal-actions">
+            <button class="outline-button" onclick="closeModal()">Annuler</button>
+            <button class="primary-button" onclick="saveResource()">Ajouter</button>
+        </div>
+    `;
+    openModal(formHtml);
 }
 
-function addResource() {
-    const name = prompt("Nom de la nouvelle ressource (ex: RADAR 3)");
-    if(!name) return;
-    const newRes = { id: `r-${Date.now()}`, name, positions: 2, icon: '◉', phases: ['approach-radar', 'enroute-radar'], availability: 'Disponible', type: 'APP' };
+function saveResource() {
+    const name = $('#modalResName').value.trim();
+    const positions = parseInt($('#modalResPos').value) || 1;
+    const type = $('#modalResType').value;
+    if(!name) return alert("Indiquez un nom.");
+    
+    const phasesByType = { TWR: ['aerodrome'], APP: ['approach-procedure', 'approach-radar'], ENR: ['enroute-procedure', 'enroute-radar'] };
+    const newRes = { id: `r-${Date.now()}`, name, positions, icon: type === 'TWR' ? '♜' : '◉', phases: phasesByType[type], availability: 'Disponible', type };
     appData.resources.push(newRes);
-    saveData(appData);
+    saveData();
+    closeModal();
     renderResources();
     renderResourceSelector();
 }
 
-// --- INSTRUCTEURS (VUE COMPLÈTE) ---
+function editResource(id) {
+    const res = appData.resources.find(r => r.id === id);
+    if(!res) return;
+    const formHtml = `
+        <h3>Modifier ${escapeHtml(res.name)}</h3>
+        <div class="modal-form">
+            <label>Nom <input id="modalEditResName" value="${escapeHtml(res.name)}" /></label>
+            <label>Positions <input id="modalEditResPos" type="number" min="1" value="${res.positions}" /></label>
+        </div>
+        <div class="modal-actions">
+            <button class="outline-button" onclick="closeModal()">Annuler</button>
+            <button class="primary-button" onclick="updateResource('${id}')">Enregistrer</button>
+        </div>
+    `;
+    openModal(formHtml);
+}
+
+function updateResource(id) {
+    const res = appData.resources.find(r => r.id === id);
+    if(!res) return;
+    res.name = $('#modalEditResName').value.trim() || res.name;
+    res.positions = parseInt($('#modalEditResPos').value) || res.positions;
+    saveData();
+    closeModal();
+    renderResources();
+}
+
+function deleteResource(id) {
+    openModal(`
+        <h3>Supprimer cette ressource ?</h3>
+        <p class="modal-confirm">Cette action est irréversible.</p>
+        <div class="modal-actions">
+            <button class="outline-button" onclick="closeModal()">Annuler</button>
+            <button class="primary-button" onclick="confirmDeleteResource('${id}')">Supprimer</button>
+        </div>
+    `);
+}
+function confirmDeleteResource(id) {
+    appData.resources = appData.resources.filter(r => r.id !== id);
+    state.selectedResources.delete(id);
+    saveData();
+    closeModal();
+    renderResources();
+    renderResourceSelector();
+}
+
+// --- INSTRUCTEURS (CRUD AVEC MODALE) ---
 function renderInstructors() {
     const target = document.getElementById('instructorList');
     if(!target) return;
@@ -195,28 +261,87 @@ function renderInstructors() {
     target.innerHTML = appData.instructors.map(i => `
         <article class="instructor-card">
             <div class="avatar">${initials(i.name)}</div>
-            <div><strong>${escapeHtml(i.name)}</strong><p>${escapeHtml(i.speciality)}</p><span class="load">● ${i.groups || 'Disponible'}</span></div>
+            <div><strong>${escapeHtml(i.name)}</strong><p>${escapeHtml(i.speciality)} · ${i.groups || 'Disponible'}</p><span class="load">● ${i.groups ? 'Affecté' : 'Disponible aujourd’hui'}</span></div>
             <div class="instructor-actions">
-                <button onclick="alert('Modifier ${escapeHtml(i.name)}')">Modifier</button>
+                <button onclick="editInstructor('${i.id}')">Modifier</button>
                 <button onclick="deleteInstructor('${i.id}')" class="remove-instructor">×</button>
             </div>
         </article>
     `).join('');
 }
 
-function deleteInstructor(id) {
-    if(!confirm("Supprimer cet instructeur ?")) return;
-    appData.instructors = appData.instructors.filter(i => i.id !== id);
-    saveData(appData);
+function addInstructorForm() {
+    const formHtml = `
+        <h3>Ajouter un instructeur</h3>
+        <p>La spécialité détermine les phases auxquelles il peut être affecté.</p>
+        <div class="modal-form">
+            <label>Nom complet <input id="modalInstName" placeholder="Ex. Nadia Benali" /></label>
+            <label>Spécialité <select id="modalInstSpec"><option>TWR</option><option>Approche Radar</option><option>TWR + Approche Radar</option><option>En-route Radar</option></select></label>
+            <label>Groupes déjà affectés <input id="modalInstGroups" type="number" min="0" value="0" /></label>
+        </div>
+        <div class="modal-actions">
+            <button class="outline-button" onclick="closeModal()">Annuler</button>
+            <button class="primary-button" onclick="saveInstructor()">Ajouter</button>
+        </div>
+    `;
+    openModal(formHtml);
+}
+
+function saveInstructor() {
+    const name = $('#modalInstName').value.trim();
+    const speciality = $('#modalInstSpec').value;
+    const groups = parseInt($('#modalInstGroups').value) || 0;
+    if(!name) return alert("Indiquez un nom.");
+    
+    appData.instructors.push({ id: `i-${Date.now()}`, name, speciality, groups });
+    saveData();
+    closeModal();
     renderInstructors();
 }
 
-function addInstructor() {
-    const name = prompt("Nom de l'instructeur");
-    if(!name) return;
-    const newInst = { id: `i-${Date.now()}`, name, speciality: 'Approche Radar', groups: 0 };
-    appData.instructors.push(newInst);
-    saveData(appData);
+function editInstructor(id) {
+    const inst = appData.instructors.find(i => i.id === id);
+    if(!inst) return;
+    const formHtml = `
+        <h3>Modifier ${escapeHtml(inst.name)}</h3>
+        <div class="modal-form">
+            <label>Nom <input id="modalEditInstName" value="${escapeHtml(inst.name)}" /></label>
+            <label>Spécialité <select id="modalEditInstSpec"><option ${inst.speciality === 'TWR' ? 'selected' : ''}>TWR</option><option ${inst.speciality === 'Approche Radar' ? 'selected' : ''}>Approche Radar</option><option ${inst.speciality === 'TWR + Approche Radar' ? 'selected' : ''}>TWR + Approche Radar</option><option ${inst.speciality === 'En-route Radar' ? 'selected' : ''}>En-route Radar</option></select></label>
+            <label>Groupes <input id="modalEditInstGroups" type="number" min="0" value="${inst.groups || 0}" /></label>
+        </div>
+        <div class="modal-actions">
+            <button class="outline-button" onclick="closeModal()">Annuler</button>
+            <button class="primary-button" onclick="updateInstructor('${id}')">Enregistrer</button>
+        </div>
+    `;
+    openModal(formHtml);
+}
+
+function updateInstructor(id) {
+    const inst = appData.instructors.find(i => i.id === id);
+    if(!inst) return;
+    inst.name = $('#modalEditInstName').value.trim() || inst.name;
+    inst.speciality = $('#modalEditInstSpec').value;
+    inst.groups = parseInt($('#modalEditInstGroups').value) || 0;
+    saveData();
+    closeModal();
+    renderInstructors();
+}
+
+function deleteInstructor(id) {
+    openModal(`
+        <h3>Retirer cet instructeur ?</h3>
+        <p class="modal-confirm">Il ne sera plus disponible pour les futurs plannings.</p>
+        <div class="modal-actions">
+            <button class="outline-button" onclick="closeModal()">Annuler</button>
+            <button class="primary-button" onclick="confirmDeleteInstructor('${id}')">Retirer</button>
+        </div>
+    `);
+}
+function confirmDeleteInstructor(id) {
+    appData.instructors = appData.instructors.filter(i => i.id !== id);
+    saveData();
+    closeModal();
     renderInstructors();
 }
 
@@ -226,7 +351,7 @@ function renderDashboard() {
     document.getElementById('dashboardInstructorTotal').textContent = appData.instructors.length;
 }
 
-// --- CONFIGURATION DES ÉVÉNEMENTS (BOUTONS) ---
+// --- CONFIGURATION DES ÉVÉNEMENTS ---
 function setupEvents() {
   // 1. Navigation latérale
   $$('.nav-item').forEach(button => {
@@ -268,13 +393,11 @@ function setupEvents() {
     if(el) el.addEventListener('input', calculateEstimates);
   });
 
-  // 7. Bouton "Ajouter une ressource"
-  document.getElementById('openResourceCreator')?.addEventListener('click', addResource);
+  // 7. Boutons des Modales (Ouverture)
+  document.getElementById('openResourceCreator')?.addEventListener('click', addResourceForm);
+  document.getElementById('addInstructor')?.addEventListener('click', addInstructorForm);
 
-  // 8. Bouton "Ajouter un instructeur"
-  document.getElementById('addInstructor')?.addEventListener('click', addInstructor);
-
-  // 9. Bouton Enregistrer/Générer
+  // 8. Bouton Enregistrer/Générer
   document.getElementById('savePromotion')?.addEventListener('click', function() {
     const name = document.getElementById('cohortName').value;
     if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
@@ -284,10 +407,10 @@ function setupEvents() {
   document.getElementById('generatePlan')?.addEventListener('click', function() {
     const name = document.getElementById('cohortName').value;
     if(!name) { alert('Veuillez donner un nom à la promotion.'); return; }
-    alert('🚀 Lancement OR-Tools pour "' + name + '"');
+    alert('🚀 OR-Tools génère le planning pour "' + name + '"');
   });
 
-  // 10. Boutons de l'en-tête
+  // 9. Boutons de l'en-tête
   document.querySelector('.icon-button.notification')?.addEventListener('click', () => alert('🔔 3 notifications'));
   document.querySelector('.icon-button[aria-label="Aide"]')?.addEventListener('click', () => alert('📖 Aide disponible'));
   document.querySelector('.chevron')?.addEventListener('click', () => alert('⚙️ Profil utilisateur'));
