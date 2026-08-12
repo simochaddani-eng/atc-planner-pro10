@@ -1,4 +1,4 @@
-// app.js - Version avec Modale CSS (Gestion Instructeurs & Ressources)
+// app.js - Version avec Instructeurs compatibles (Pills)
 
 // --- CONFIGURATION DE BASE ---
 const defaultResources = [
@@ -48,7 +48,7 @@ function saveData() {
     localStorage.setItem('atc-planner-data', JSON.stringify(appData));
 }
 
-// --- GESTION DE LA MODALE CSS (Photo 2) ---
+// --- GESTION DE LA MODALE CSS ---
 function openModal(content) { 
     $('#modalContent').innerHTML = content; 
     $('#modalBackdrop').hidden = false; 
@@ -114,7 +114,7 @@ function setStep(stepNumber) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// --- CALCULS ESTIMATIFS ---
+// --- CALCULS ESTIMATIFS ET PRÉVISUALISATION ---
 function calculateEstimates() {
   const students = Math.max(1, Number($('#studentCount').value) || 1);
   const sessions = Number($('#sessionCount').value) || 8;
@@ -132,12 +132,14 @@ function calculateEstimates() {
   const endDate = new Date();
   endDate.setDate(endDate.getDate() + days);
 
+  // Panneau de droite (Résultat estimatif)
   document.getElementById('estimateSessions').textContent = totalSessions;
   document.getElementById('estimateHours').textContent = `${totalHours.toFixed(totalHours % 1 ? 1 : 0)} h`;
   document.getElementById('estimateGroups').textContent = `${groups} groupe${groups > 1 ? 's' : ''}`;
   document.getElementById('estimateDays').textContent = `${days} jour${days > 1 ? 's' : ''}`;
   document.getElementById('estimateEnd').textContent = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }).replace('.', '');
   
+  // Prévisualisation (Étape 4)
   const name = document.getElementById('cohortName').value.trim() || '—';
   const phaseName = phaseLabels[state.phase] || '—';
   const resName = selected.map(r => r.name).join(', ') || '—';
@@ -146,9 +148,12 @@ function calculateEstimates() {
   document.getElementById('previewStudents').textContent = students;
   document.getElementById('previewPhase').textContent = phaseName;
   document.getElementById('previewResources').textContent = resName + ` (${positions} positions)`;
+
+  // Mise à jour des instructeurs compatibles
+  renderInstructorPills();
 }
 
-// --- RESSOURCES (CRUD via Modale) ---
+// --- RESSOURCES & INSTRUCTEURS (AFFICHAGE COMPATIBLE) ---
 function renderResourceSelector() {
   const eligible = appData.resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible');
   const container = document.getElementById('resourceSelector');
@@ -167,6 +172,29 @@ function renderResourceSelector() {
   }));
 }
 
+// --- CORRECTION ICI : AFFICHAGE DES INSTRUCTEURS COMPATIBLES ---
+function renderInstructorPills() {
+    const target = document.getElementById('instructorPills');
+    if (!target) return;
+
+    // Filtrer les instructeurs selon la phase choisie
+    const compatible = appData.instructors.filter(instructor => {
+        if (state.phase === 'aerodrome') return instructor.speciality === 'TWR' || instructor.speciality === 'TWR + Approche Radar';
+        if (state.phase === 'approach-procedure' || state.phase === 'approach-radar') return instructor.speciality === 'Approche Radar' || instructor.speciality === 'TWR + Approche Radar';
+        return instructor.speciality === 'En-route Radar'; // Pour En-route procédure et Radar
+    });
+
+    if (!compatible.length) {
+        target.innerHTML = '<span>Instructeurs compatibles</span><small>Aucun instructeur de cette spécialité. Ajoutez-en depuis le menu Instructeurs.</small>';
+        return;
+    }
+    
+    target.innerHTML = `<span>Instructeurs compatibles</span>${compatible.map((instructor, index) => `
+        <label><input type="checkbox" value="${instructor.id}" ${index < 4 ? 'checked' : ''} /> ${escapeHtml(instructor.name)}</label>
+    `).join('')}`;
+}
+
+// --- RESSOURCES CRUD ---
 function renderResources() {
     const target = document.getElementById('resourceCards');
     if(!target) return;
@@ -247,7 +275,7 @@ function confirmDeleteResource(id) {
     saveData(); closeModal(); renderResources(); renderResourceSelector();
 }
 
-// --- INSTRUCTEURS (CRUD via Modale) ---
+// --- INSTRUCTEURS CRUD ---
 function renderInstructors() {
     const target = document.getElementById('instructorList');
     if(!target) return;
@@ -280,6 +308,7 @@ function saveInstructor() {
     if(!name) return;
     appData.instructors.push({ id: `i-${Date.now()}`, name, speciality, groups });
     saveData(); closeModal(); renderInstructors();
+    renderInstructorPills(); // Mise à jour des pills
 }
 
 function editInstructor(id) {
@@ -306,6 +335,7 @@ function updateInstructor(id) {
     i.speciality = $('#modalEditInstSpec').value;
     i.groups = parseInt($('#modalEditInstGroups').value) || 0;
     saveData(); closeModal(); renderInstructors();
+    renderInstructorPills();
 }
 
 function deleteInstructor(id) {
@@ -321,9 +351,10 @@ function deleteInstructor(id) {
 function confirmDeleteInstructor(id) {
     appData.instructors = appData.instructors.filter(i => i.id !== id);
     saveData(); closeModal(); renderInstructors();
+    renderInstructorPills();
 }
 
-// --- SAUVEGARDE DES PARAMÈTRES ---
+// --- PARAMÈTRES ---
 function renderSettings() {
     document.getElementById('settingAcademyName').value = 'Aviation Academy';
     document.getElementById('settingDefaultStart').value = appData.settings.start || '09:00';
@@ -418,5 +449,5 @@ document.addEventListener('DOMContentLoaded', function() {
     renderResourceSelector();
     calculateEstimates();
     setupEvents();
-    console.log('✅ ATC Planner Modale CSS prêt');
+    console.log('✅ ATC Planner Instructeurs compatibles OK');
 });
