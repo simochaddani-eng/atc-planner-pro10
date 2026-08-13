@@ -1,5 +1,2 @@
 streamlit
-ortools
-sqlalchemy
-supabase
 requests
