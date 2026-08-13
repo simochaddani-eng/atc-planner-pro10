@@ -6,9 +6,16 @@ from supabase import create_client, Client
 
 st.set_page_config(page_title="ATC Planner - AIAC", layout="wide")
 
-# --- CONNEXION SUPABASE (CÔTÉ SERVEUR) ---
+# --- CONNEXION SUPABASE ---
 SUPABASE_URL = "https://bwctfhuwpbkxnebqslpn.supabase.co"
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+
+# Try to get the key from Streamlit Cloud Secrets. Fallback to hardcoded key for local testing.
+try:
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+except Exception:
+    # This is just a fallback for local computer testing. 
+    # On the Cloud, it reads from the Secrets you just pasted above.
+    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3Y3RmaHV3cGJreG5lYnFzbHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NzQ2NTQsImV4cCI6MjEwMjE1MDY1NH0.5zSMn62M-PMwwOurNsVGPMJeRnKyEbmBnA3-nZ7jtM0"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -23,22 +30,19 @@ html = load_file('index.html')
 css = load_file('styles.css')
 js = load_file('app.js')
 
-# --- INJECTION DU CSS ET JS ---
+# --- INJECTION DU CSS ---
 html = html.replace('<link rel="stylesheet" href="styles.css" />', f'<style>{css}</style>')
 
-# --- INJECTION DES DONNÉES DIRECTEMENT DANS LE HTML (LA SOLUTION) ---
-# On va chercher les données avec Python, et on les écrit directement dans le HTML.
+# --- INJECTION DES DONNÉES SUPABASE DIRECTEMENT DANS LE HTML ---
 try:
     response = supabase.table('planner_state').select("data").eq('workspace', 'aiac').execute()
     if response.data and len(response.data) > 0:
         backend_data = response.data[0]['data']
-        # On transforme les données en string JSON pour les injecter
         json_data = json.dumps(backend_data)
         
-        # On crée un petit script qui écrase le localStorage avant même que l'app.js ne démarre
+        # On injecte le script qui force l'écrasement du localStorage
         injection_script = f"""
         <script>
-            // FORCE LE CHARGEMENT DES DONNÉES DU SERVEUR
             localStorage.setItem('atc-planner-management-v3', '{json_data}');
             console.log('✅ Données injectées par le Backend');
         </script>
@@ -46,7 +50,7 @@ try:
         # On injecte le script juste avant le JS principal
         html = html.replace('<script src="app.js"></script>', injection_script + '<script src="app.js"></script>')
 except Exception as e:
-    pass # Si ça échoue, l'app utilise juste le localStorage vide (comme avant)
+    pass 
 
 # --- CSS FULL PAGE ---
 st.markdown("""
