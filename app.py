@@ -1,4 +1,4 @@
-# app.py
+# app.py - Version avec suppression fonctionnelle
 import streamlit as st
 import streamlit.components.v1 as components
 import json
@@ -37,6 +37,7 @@ if action in ["generate", "delete", "edit"] and password != MASTER_PASSWORD:
     st.query_params.status = "failure"
     st.query_params.message = "🔒 Mot de passe incorrect. Les données sont en lecture seule."
 
+# --- CRÉATION DE PROMOTION ---
 elif action == "generate" and data_str:
     try:
         data = json.loads(data_str)
@@ -58,6 +59,31 @@ elif action == "generate" and data_str:
             st.query_params.action = "result"
             st.query_params.status = "failure"
             st.query_params.message = "Erreur de sauvegarde."
+    except Exception as e:
+        st.query_params.clear()
+        st.query_params.action = "result"
+        st.query_params.status = "failure"
+        st.query_params.message = str(e)
+
+# --- SUPPRESSION DE PROMOTION ---
+elif action == "delete" and data_str:
+    try:
+        data = json.loads(data_str)
+        promo_id = data.get('id')
+        
+        # On filtre la liste pour enlever la promotion avec cet ID
+        shared_data["promotions"] = [p for p in shared_data.get("promotions", []) if p.get('id') != promo_id]
+        
+        if save_all_data(shared_data):
+            st.query_params.clear()
+            st.query_params.action = "result"
+            st.query_params.status = "success"
+            st.query_params.message = "Promotion supprimée avec succès !"
+        else:
+            st.query_params.clear()
+            st.query_params.action = "result"
+            st.query_params.status = "failure"
+            st.query_params.message = "Erreur lors de la suppression."
     except Exception as e:
         st.query_params.clear()
         st.query_params.action = "result"
