@@ -1,4 +1,4 @@
-# app.py - Version avec suppression fonctionnelle
+# app.py - Version avec Suppression par Modale fonctionnelle
 import streamlit as st
 import streamlit.components.v1 as components
 import json
@@ -27,8 +27,9 @@ promotions = json.dumps(shared_data.get("promotions", []))
 instructors = json.dumps(shared_data.get("instructors", []))
 
 action = st.query_params.get("action")
-data_str = st.query_params.get("data")
+data_str = st.query_params.get("data")  // Pour la génération
 password = st.query_params.get("password")
+id_str = st.query_params.get("id")      // Pour la suppression
 
 # --- PROTECTION BACKEND ---
 if action in ["generate", "delete", "edit"] and password != MASTER_PASSWORD:
@@ -65,11 +66,10 @@ elif action == "generate" and data_str:
         st.query_params.status = "failure"
         st.query_params.message = str(e)
 
-# --- SUPPRESSION DE PROMOTION ---
-elif action == "delete" and data_str:
+# --- SUPPRESSION DE PROMOTION (CORRIGÉE) ---
+elif action == "delete" and id_str:
     try:
-        data = json.loads(data_str)
-        promo_id = data.get('id')
+        promo_id = id_str
         
         # On filtre la liste pour enlever la promotion avec cet ID
         shared_data["promotions"] = [p for p in shared_data.get("promotions", []) if p.get('id') != promo_id]
