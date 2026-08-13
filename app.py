@@ -23,7 +23,7 @@ js = load_file('app.js')
 html = html.replace('<link rel="stylesheet" href="styles.css" />', f'<style>{css}</style>')
 html = html.replace('<script src="app.js"></script>', f'<script>{js}</script>')
 
-# --- ROUTES BACKEND ---
+# --- ROUTES BACKEND (API) ---
 action = st.query_params.get("action")
 data_str = st.query_params.get("data")
 id_str = st.query_params.get("id")
