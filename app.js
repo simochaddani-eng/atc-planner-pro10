@@ -1,4 +1,5 @@
-// app.js (Recalcul Résout les conflits et écrase les données)
+// app.js - Version FINALE avec Résolution de Chevauchements
+
 const defaultResources = [
   { id: 'twr', name: 'TWR 1–4', positions: 4, icon: '♜', phases: ['aerodrome'], availability: 'Disponible', type: 'TWR' },
   { id: 'radar1', name: 'RADAR 1', positions: 4, icon: '◉', phases: ['approach-procedure', 'approach-radar'], availability: 'Disponible', type: 'APP' },
@@ -20,7 +21,7 @@ const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(sel
 const defaultPromotions = [];
 const defaultInstructors = [];
 const storageKey = 'atc-planner-management-v3';
-const defaultSettings = { academyName: 'Aviation Academy', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45 };
+const defaultSettings = { academyName: 'Aviation Academy', userName: 'Utilisateur', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45 };
 function loadManagementData() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('atc-planner-management-v2') || localStorage.getItem('atc-planner-management-v1'));
@@ -73,14 +74,15 @@ function updateCurrentClock() {
 
 function calculate() {
   const students = Math.max(1, Number($('#studentCount').value) || 1);
-  const sessions = Number($('#sessionCount').value);
-  const minutes = Number($('#sessionDuration').value);
+  const sessions = Math.max(1, Number($('#sessionCount').value) || 1);
+  const minutes = Math.max(1, Number($('#sessionDuration').value) || 1);
   const selected = resources.filter(r => state.selectedResources.has(r.id));
   const positions = selected.reduce((sum, r) => sum + r.positions, 0) || 1;
   const totalSessions = students * sessions;
   const positionHours = totalSessions * minutes / 60;
   const groups = Math.ceil(students / positions);
   const slotsPerDay = Math.max(1, Math.floor(durationMinutes() / minutes));
+  // A rotation is a complete pass of the groups through the positions. This makes the estimate readable operationally.
   const totalRotations = groups * sessions;
   const days = Math.ceil(totalRotations / slotsPerDay);
   const selectedDays = $$('#dayToggles button.selected').map(button => Number(button.dataset.day));
@@ -117,6 +119,7 @@ function dashboardRow(name, icon, blocks) {
   return `<div class="occupancy-row"><div class="resource-label"><span class="res-icon">${icon}</span><span>${name}<small>${capacity}</small></span></div><div class="time-track">${blocks.map(block => `<div class="booking ${block.type}" style="grid-column:${block.start}/span ${block.span}">${block.title}<span>${block.time}</span></div>`).join('')}</div></div>`;
 }
 
+/* Legacy static mock-up data retained only as a reference; it is not rendered. */
 function renderDashboardOccupancyDemo() {
   const data = [
     ['TWR 1', '♜', [{ start:1, span:2, title:'P2025-A', time:'08:00 – 09:30', type:'blue-booking' }, { start:3, span:2, title:'P2025-B', time:'09:45 – 11:15', type:'green-booking' }, { start:5, span:2, title:'P2025-C', time:'11:30 – 13:00', type:'purple-booking' }, { start:7, span:2, title:'P2025-A', time:'13:45 – 15:15', type:'amber-booking' }]],
@@ -198,7 +201,8 @@ function dailySlots(promotion) {
     const afterBreak = index >= beforeBreak;
     slots.push(start + index * duration + (afterBreak ? breakMinutes : 0));
   }
-  return slots.filter(slot => slot + duration <= end);
+  const validSlots = slots.filter(slot => slot + duration <= end);
+  return validSlots.length ? validSlots : [start];
 }
 function scheduledEvents() {
   const colours = ['blue', 'green', 'purple', 'amber']; const events = [];
@@ -395,24 +399,20 @@ function resetPromotionForm() {
 function saveCurrentPromotion() {
   const name = $('#cohortName').value.trim();
   if (!name) { showToast('Indiquez un nom de promotion avant de l’enregistrer.'); $('#cohortName').focus(); return null; }
-
-  const info = calculate(); // Utilise votre propre calcul pour obtenir les données
-
   const record = {
     id: state.editingPromotionId || `promotion-${Date.now()}`,
     name,
     students: Math.max(1, Number($('#studentCount').value) || 1),
     phase: state.phase,
-    sessions: Number($('#sessionCount').value),
-    sessionDuration: Number($('#sessionDuration').value),
-    breakDuration: Number($('#breakDuration').value),
+    sessions: Math.max(1, Number($('#sessionCount').value) || 1),
+    sessionDuration: Math.max(1, Number($('#sessionDuration').value) || 1),
+    breakDuration: Math.max(0, Number($('#breakDuration').value) || 0),
     startDate: $('#startDate').value || dateKey(new Date()),
     dayStart: $('#dayStart').value,
     dayEnd: $('#dayEnd').value,
     selectedResourceIds: [...state.selectedResources],
     status: state.generated ? 'Planifiée' : 'À planifier'
   };
-  
   const previousIndex = promotions.findIndex(item => item.id === record.id);
   if (previousIndex >= 0) promotions.splice(previousIndex, 1, record); else promotions.unshift(record);
   state.editingPromotionId = record.id;
@@ -423,28 +423,6 @@ function saveCurrentPromotion() {
   renderWeekGrid();
   renderGeneratedPlan();
   renderPhaseTracking();
-
-  // --- NOUVEAU : ENVOI AU SERVEUR PYTHON (STREAMLIT) ---
-  if (state.generated) {
-    const pythonData = {
-        name: record.name,
-        students: record.students,
-        phase: record.phase,
-        sessions: record.sessions,
-        duration: record.sessionDuration,
-        startDate: record.startDate,
-        positions: info.positions,
-        dailyHours: [9, 10, 11, 14, 15, 16]
-    };
-    
-    // Envoi à Streamlit via une redirection (méthode simple pour communiquer)
-    const params = new URLSearchParams({
-        action: 'generate',
-        data: JSON.stringify(pythonData)
-    });
-    window.location.search = params.toString();
-  }
-
   return record;
 }
 
@@ -588,15 +566,33 @@ function renderReports() {
   $('#resourceReportList').innerHTML = resourceHours.length ? resourceHours.map(item => `<div class="resource-report-row"><strong>${escapeHtml(item.resource.name)}</strong><div class="meter"><i style="width:${item.hours / max * 100}%"></i></div><span>${item.hours.toFixed(item.hours % 1 ? 1 : 0)} h</span></div>`).join('') : '<div class="empty-state">Aucune ressource configurée.</div>';
 }
 function renderSettings() {
+  $('#settingUserName').value = settings.userName || 'Utilisateur';
   $('#settingAcademyName').value = settings.academyName;
   $('#settingDefaultStart').value = settings.defaultStart;
   $('#settingDefaultEnd').value = settings.defaultEnd;
   $('#settingDefaultDuration').value = settings.defaultDuration;
   $('#settingDefaultBreak').value = settings.defaultBreak;
 }
+function renderUserProfile() {
+  const userName = settings.userName?.trim() || 'Utilisateur';
+  $('#userDisplayName').textContent = userName;
+  $('#userAvatar').textContent = initials(userName);
+  if ($('#pageTitle').textContent.startsWith('Bonjour,')) $('#pageTitle').textContent = `Bonjour, ${userName}`;
+}
+function userProfileModal() {
+  const userName = settings.userName?.trim() || 'Utilisateur';
+  openModal(`<h3>Votre profil</h3><p>Ce nom sera affiché dans l’en-tête de votre espace ATC Planner.</p><div class="modal-form"><label>Votre nom<input id="profileUserName" autocomplete="name" value="${escapeHtml(userName)}" placeholder="Ex. Mohamed Chaddani" /></label></div><div class="modal-actions"><button class="outline-button" id="modalCancel">Annuler</button><button class="primary-button" id="saveUserProfile">Enregistrer</button></div>`);
+}
+function saveUserProfile() {
+  const userName = $('#profileUserName')?.value.trim();
+  if (!userName) { $('#profileUserName')?.focus(); showToast('Indiquez le nom à afficher.'); return; }
+  settings = { ...settings, userName };
+  persistManagementData(); renderUserProfile(); renderSettings(); closeModal(); showToast('Nom utilisateur enregistré.');
+}
 function saveSettings() {
-  settings = { academyName: $('#settingAcademyName').value.trim() || 'Aviation Academy', defaultStart: $('#settingDefaultStart').value || '09:00', defaultEnd: $('#settingDefaultEnd').value || '16:30', defaultDuration: Number($('#settingDefaultDuration').value), defaultBreak: Number($('#settingDefaultBreak').value) };
-  document.querySelector('.brand-name').innerHTML = `${escapeHtml(settings.academyName).toUpperCase().replace(' ', '<br />')}`;
+  settings = { academyName: $('#settingAcademyName').value.trim() || 'Aviation Academy', userName: $('#settingUserName').value.trim() || 'Utilisateur', defaultStart: $('#settingDefaultStart').value || '09:00', defaultEnd: $('#settingDefaultEnd').value || '16:30', defaultDuration: Math.max(1, Number($('#settingDefaultDuration').value) || 45), defaultBreak: Math.max(0, Number($('#settingDefaultBreak').value) || 0) };
+  document.querySelector('.brand-name').innerHTML = escapeHtml(settings.academyName).toUpperCase().split(/\s+/).join('<br />');
+  renderUserProfile();
   persistManagementData(); showToast('Paramètres enregistrés. Ils seront utilisés pour les nouvelles promotions.');
 }
 
@@ -675,7 +671,7 @@ function setView(viewId) {
   $$('.view').forEach(view => view.classList.toggle('active-view', view.id === viewId));
   $$('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.view === viewId));
   const headings = {dashboard:['Bonjour, Alexandre','Vue d’ensemble de la planification ATC'], promotions:['Promotions & planification','Gérer les promotions et générer un planning automatique'], 'phase-tracking':['Suivi de phase','Avancement, groupes et ressources de la promotion'], planning:['Planning des simulateurs','Vue détaillée · occupation hebdomadaire'], resources:['Gestion des simulateurs','Positions disponibles et polyvalentes'], sessions:['Séances de simulation','Suivi des rotations et des exercices'], instructors:['Instructeurs','Disponibilités et affectations'], students:['Étudiants','Suivi des promotions'], reports:['Rapports','Capacité et performance'], settings:['Paramètres','Configuration de la plateforme']};
-  $('#pageTitle').textContent = headings[viewId][0]; $('#pageSubtitle').textContent = headings[viewId][1];
+  $('#pageTitle').textContent = headings[viewId][0]; $('#pageSubtitle').textContent = headings[viewId][1]; renderUserProfile();
   if (viewId === 'dashboard') renderDashboard();
   if (viewId === 'phase-tracking') renderPhaseTracking();
   if (viewId === 'planning') { renderWeekGrid(); renderGeneratedPlan(); }
@@ -686,7 +682,7 @@ function setView(viewId) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// --- FONCTION DE RÉSOLUTION DES CHEVAUCHEMENTS (VRAIE) ---
+// --- FONCTION DE RÉSOLUTION DES CHEVAUCHEMENTS (RÉINTÉGRÉE) ---
 function resolveConflicts() {
     let events = scheduledEvents();
     let conflicts = planningConflicts();
@@ -777,17 +773,15 @@ function setupEvents() {
   $('#phaseCards').addEventListener('click', event => { const card = event.target.closest('.phase-card'); if (!card) return; state.phase = card.dataset.phase; $$('.phase-card').forEach(item => item.classList.toggle('selected', item === card)); const allowed = new Set(resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible').map(r => r.id)); state.selectedResources = new Set([...state.selectedResources].filter(id => allowed.has(id))); if (!state.selectedResources.size && allowed.size) state.selectedResources.add([...allowed][0]); renderResourceSelector(); renderInstructorPills(); updateEstimates(); });
   ['studentCount','sessionCount','sessionDuration','breakDuration','dayStart','dayEnd','startDate'].forEach(id => $(`#${id}`).addEventListener('input', updateEstimates));
   $$('#dayToggles button').forEach(button => button.addEventListener('click', () => { button.classList.toggle('selected'); updateEstimates(); }));
-  
-  document.getElementById('addStudent')?.addEventListener('click', addStudentModal);
-
-  // --- LIEN DIRECT VERS LA VRAIE FONCTION DE RÉSOLUTION ---
-  document.getElementById('recalculate')?.addEventListener('click', resolveConflicts);
-  document.getElementById('optimize')?.addEventListener('click', resolveConflicts);
-
   $('#generatePlan').addEventListener('click', () => { state.generated = true; const saved = saveCurrentPromotion(); if (!saved) return; const info = calculate(); state.planningWeekStart = dateFromKey(saved.startDate) || new Date(); renderWeekGrid(); renderDashboard(); renderGeneratedPlan(); setView('planning'); showToast(`${info.groups} groupes et ${info.totalRotations} rotations ont été proposés automatiquement.`); });
   $('#savePromotion').addEventListener('click', () => { state.generated = false; const saved = saveCurrentPromotion(); if (saved) showToast(`Promotion ${saved.name} enregistrée.`); });
   $('#resetPlanner').addEventListener('click', () => { resetPromotionForm(); showToast('Formulaire de planification réinitialisé.'); });
   $('#newPromotion').addEventListener('click', () => { resetPromotionForm(); $('#cohortName').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#cohortName').focus(); showToast('Nouvelle promotion : complétez le formulaire puis enregistrez-la.'); });
+  
+  // --- CORRECTION : Le bouton Recalculer déclenche maintenant la résolution ---
+  document.getElementById('recalculate')?.addEventListener('click', resolveConflicts);
+  document.getElementById('optimize')?.addEventListener('click', resolveConflicts);
+
   $('#addMaintenance').addEventListener('click', () => { const date = dateKey(displayedDates()[0]); openModal(`<h3>Ajouter une indisponibilité</h3><p>La position sera bloquée à la date choisie et les conflits éventuels seront signalés.</p><div class="modal-form"><label>Ressource<select id="maintenanceResource">${resources.map(resource => `<option value="${resource.id}">${escapeHtml(resource.name)}</option>`).join('')}</select></label><label>Date<input id="maintenanceDate" type="date" value="${date}" /></label><label>Motif<input id="maintenanceReason" value="Maintenance" /></label></div><div class="modal-actions"><button class="outline-button" id="modalCancel">Annuler</button><button class="primary-button" id="saveMaintenance">Bloquer la ressource</button></div>`); });
   $('#showConflict').addEventListener('click', () => { const conflicts = planningConflicts(); const details = conflicts.length ? conflicts.map(conflict => `<li>${escapeHtml(conflict.event.title)} · ${formatDate(dateFromKey(conflict.event.date))} · ${conflict.type === 'maintenance' ? 'ressource indisponible' : 'créneau en chevauchement'}</li>`).join('') : '<li>Aucun conflit détecté.</li>'; openModal(`<h3>Contrôles de planning</h3><p>Les alertes sont calculées avec les données que vous avez créées.</p><ul>${details}</ul><p>Modifiez la promotion, une ressource ou une indisponibilité, puis recalculez.</p><div class="modal-actions"><button class="outline-button" id="modalCancel">Fermer</button><button class="primary-button" id="modalRecalculate">Recalculer</button></div>`); });
   $('#modalClose').addEventListener('click', closeModal); $('#modalBackdrop').addEventListener('click', event => { if (event.target === $('#modalBackdrop')) closeModal(); });
@@ -803,6 +797,19 @@ function setupEvents() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const link = document.createElement('a'); link.href = url; link.download = 'atc-planner-planning.csv'; link.click(); URL.revokeObjectURL(url); showToast('Export du planning téléchargé.');
   });
   $('#regenerateGroups').addEventListener('click', () => { renderPhaseTracking(); showToast('Groupes recalculés selon les positions disponibles.'); });
+  $('#sessionFilter').addEventListener('change', renderSessions);
+  $('#exportSessions').addEventListener('click', () => {
+    const rows = [['Promotion / groupe', 'Date', 'Créneau', 'Ressource'], ...scheduledEvents().map(event => [event.title, event.date, event.time, resources.find(resource => resource.id === event.resourceId)?.name || ''])];
+    downloadCsv('atc-planner-sessions.csv', rows); showToast('Export des séances téléchargé.');
+  });
+  $('#addStudent').addEventListener('click', addStudentModal);
+  $('#studentPromotionSelect').addEventListener('change', event => { state.studentPromotionId = event.target.value; renderStudents(); });
+  $('#exportReport').addEventListener('click', () => {
+    const events = scheduledEvents(); const hours = events.reduce((sum, event) => sum + (event.endMinutes - event.startMinutes) / 60, 0);
+    downloadCsv('atc-planner-rapport.csv', [['Indicateur', 'Valeur'], ['Promotions', promotions.length], ['Séances générées', events.length], ['Heures-position', hours.toFixed(2)], ['Étudiants', promotions.reduce((sum, promotion) => sum + (Number(promotion.students) || 0), 0)]]); showToast('Rapport téléchargé.');
+  });
+  $('#saveSettings').addEventListener('click', saveSettings);
+  $('#editUserProfile').addEventListener('click', userProfileModal);
   $('.menu-button').addEventListener('click', () => $('.sidebar').classList.toggle('open'));
   document.addEventListener('click', event => {
     const promotionButton = event.target.closest('[data-promo-action]');
@@ -815,6 +822,7 @@ function setupEvents() {
     const removeResource = event.target.closest('[data-delete-resource]');
     const saveResource = event.target.closest('[data-save-resource]');
     const confirmedResource = event.target.closest('[data-confirm-delete-resource]');
+    const removeStudent = event.target.closest('[data-delete-student]');
     if (promotionButton) { if (promotionButton.dataset.promoAction === 'edit') editPromotion(promotionButton.dataset.promotionId); else if (promotionButton.dataset.promoAction === 'track') { state.trackingPromotionId = promotionButton.dataset.promotionId; setView('phase-tracking'); } else deletePromotion(promotionButton.dataset.promotionId); }
     if (phaseButton) { const promotion = promotions.find(item => item.id === phaseButton.dataset.trackingPromotion); if (promotion) { promotion.phase = phaseButton.dataset.setPhase; promotion.status = 'En cours'; persistManagementData(); renderPromotions(); renderPhaseTracking(); renderDashboard(); renderWeekGrid(); showToast(`Phase mise à jour : ${phaseLabels[promotion.phase]}.`); } }
     if (instructorButton) deleteInstructor(instructorButton.dataset.deleteInstructor);
@@ -825,30 +833,17 @@ function setupEvents() {
     if (confirmedPromotion) { promotions = promotions.filter(item => item.id !== confirmedPromotion.dataset.confirmDeletePromotion); if (state.editingPromotionId === confirmedPromotion.dataset.confirmDeletePromotion) resetPromotionForm(); if (state.trackingPromotionId === confirmedPromotion.dataset.confirmDeletePromotion) state.trackingPromotionId = null; persistManagementData(); renderPromotions(); renderDashboard(); renderWeekGrid(); renderGeneratedPlan(); renderPhaseTracking(); closeModal(); showToast('Promotion supprimée.'); }
     if (confirmedInstructor) { instructors = instructors.filter(item => item.id !== confirmedInstructor.dataset.confirmDeleteInstructor); persistManagementData(); renderInstructors(); renderInstructorPills(); renderDashboard(); closeModal(); showToast('Instructeur retiré.'); }
     if (confirmedResource) { resources = resources.filter(item => item.id !== confirmedResource.dataset.confirmDeleteResource); state.selectedResources.delete(confirmedResource.dataset.confirmDeleteResource); persistManagementData(); renderResourceCards(); renderResourceSummary(); renderResourceSelector(); renderDashboard(); renderWeekGrid(); closeModal(); showToast('Ressource supprimée.'); }
+    if (removeStudent) deleteStudent(removeStudent.dataset.deleteStudent);
     if (event.target.id === 'modalCancel') closeModal();
     if (event.target.id === 'modalRecalculate') { closeModal(); $('#recalculate').click(); }
     if (event.target.id === 'modalDone') closeModal();
     if (event.target.id === 'modalAddInstructor') addInstructorFromModal();
     if (event.target.closest('[data-save-instructor]')) addInstructorFromModal(event.target.closest('[data-save-instructor]').dataset.saveInstructor);
+    if (event.target.id === 'saveStudent') saveStudentFromModal();
+    if (event.target.id === 'saveUserProfile') saveUserProfile();
     if (event.target.id === 'saveMaintenance') { state.maintenance = { resourceId: $('#maintenanceResource').value, date: $('#maintenanceDate').value, reason: $('#maintenanceReason').value.trim() || 'Maintenance' }; renderWeekGrid(); renderDashboard(); closeModal(); showToast('Indisponibilité ajoutée au planning.'); }
   });
 }
 
-// --- RÉCUPÉRATION DU RÉSULTAT STREAMLIT ---
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('action') === 'result') {
-    const status = urlParams.get('status');
-    const message = urlParams.get('message');
-    if (status === 'success') {
-        showToast('✅ ' + message);
-    } else {
-        showToast('❌ ' + message);
-    }
-    // Nettoyer l'URL
-    setTimeout(() => {
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }, 100);
-}
-
 if (!$('#startDate').value) $('#startDate').value = dateKey(new Date());
-updateCurrentClock(); setInterval(updateCurrentClock, 10000); renderResourceSelector(); renderResourceSummary(); renderResourceCards(); renderPromotions(); renderInstructors(); renderInstructorPills(); updateEstimates(); renderDashboard(); renderWeekGrid(); renderGeneratedPlan(); renderPhaseTracking(); setupEvents();
+updateCurrentClock(); setInterval(updateCurrentClock, 10000); renderUserProfile(); renderResourceSelector(); renderResourceSummary(); renderResourceCards(); renderPromotions(); renderInstructors(); renderInstructorPills(); updateEstimates(); renderDashboard(); renderWeekGrid(); renderGeneratedPlan(); renderPhaseTracking(); renderSessions(); renderStudents(); renderReports(); renderSettings(); setupEvents();
