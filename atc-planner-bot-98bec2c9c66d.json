@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "atc-planner-bot",
+  "private_key_id": "98bec2c9c66dffe827be2e3759a44eb67f1b8ebf",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC7cbudyBcorNLD\n/pf+3WlPQQ2JPveUm7U/53p3tYjXyM198khBEMGMGpGP4hryWqIPHYs1jyxunnPj\nriV3M/sNZneWEf+Ichc1A3xkD1KWrgpRTC6N1va2j9EJEYEk+JkkvNG8jTxD3F2y\n1+XclzsmUU2WMe8rUmi1D9iI0tMT2YaOVzFgJkrHsaopo6fkxaVgGQRFO/Y9mMql\niT2Hbf/iwoJDgW25+scArC09iSBsH6IRIFYPb0nW13QJ7DqQJ6s53y0m5XnRcNM/\ng9m383J7D+ewmP7OVn6XpvJ2uUhXF+19p6Lvva+ppnFYhWERnrcqKry6scRKAepO\nJxsZX7zrAgMBAAECggEAMpap65X+hhhKk+II9JyeGOk2NYXcfOufOb2IBHnmklJb\n/3Ndw825Zs4e3gXIfwMt/MVc9loLRFmYbmjoLKlHRuESQlreK92a3NBxiHHIOOmE\n2Fcms1pCYJgk8v0Z7Tf44Pzi4DAABVKaqTNykpvwN1G3DmOwqHEH2GIL7zVzCUZ0\nCmzbiHADRZL72CPmnJ7Fzae+ufP/iqDWpsv3Wbuy6mHnDnj07AiLrvpF7xfDQnrB\nA+Qx8UX2OiQ8qDR4ZB3COr3KcAqmjhD9Z9vvIuMXQTp5ceH3B9m5gRb9ioeTBbh7\nh1qsP6xC51/SgWCzRI2x90aQUwIFR2zcWk0q2pf8zQKBgQDnYJKQsZOoK5KdmCXA\nQZvZjQ9i+GYOk571V+BPi//JRCPcVzMdUJEhe32ICQBJGfw1YL4hhnaMvXknzlLt\n47efvLz5gX3gW/+thB7Zh1z2N884itV/zS7GYyPq/YWlMkD3CC97BHnkSTl7SyWt\nXpvuZPV+uhaOz+CgTh6r5IiIBwKBgQDPZEqNMkJej7pwEIlg8H8w4R6gJ2OuH2w/\n2RpkeUqVriyTfi1HpfD6Vai7BqS59xBOHm4IT8196d3p3VENu/y+dfnlz2BlwZut\nnISEUE958xZ/p6DgczPfRZN/hgm8Wjt8HAjh1y7FRFJyiwtTmyUFYsJBjB5bOYhk\n7PxLzsTC/QKBgFpA1WsTmaFTvdEzdCZWcVCfMY1Nj6HH+42ARcNBvPjpV4OvkASz\nVKlW3lSeDjp1pGe94Ox64utrTUM1vCuHVC0/FgfNdyh5OnaYvt/jaWOxyWco4LcF\ndmV0bqJPWj5iJ+00iDDYQiPGXGG3om7KJNENGKXiOMJkXB6r2lL6xjcpAoGACnFe\nX6W8Oc668JGkmUEC5o8vX5kcJ9RlOwHPlmeVHdxbWkHsPcNZUwGlMWWwPbz3ETfv\nCnQaQNDZ38DJKAvjOiPupWe/zt/k2uUatx7kIZvf8iWasDKc1g1G1BEHxHg2rpUq\nzVRsgnpiPGpL87XIM3E5nttTW/yVpZ9ZROfweHECgYARwcC4K12zOmoch0FwkMK2\nWc7jgQH7kpmCb0TyayhvtEOeRJL1knfwBJ2VscxAp+Noj/g9lyGiAt0RqewSgF85\nHF6VGMCfD2d1Vme7jPchzcEd+ydPztkLRIZ+kUBkbVW4pv1m7Phfe6pF98sKcLMU\nhGLij2VXKGkUiaIO0ffQwg==\n-----END PRIVATE KEY-----\n",
+  "client_email": "atc-planner-bot@atc-planner-bot.iam.gserviceaccount.com",
+  "client_id": "103850651991487128629",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/atc-planner-bot%40atc-planner-bot.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
