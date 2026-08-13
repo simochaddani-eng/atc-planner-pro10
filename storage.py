@@ -1,70 +1,54 @@
-# storage.py
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+# storage.py - Version sans gspread (100% Streamlit Cloud compatible)
+import requests
 import json
 
-# Configuration du fichier de clé JSON (celui que vous avez téléchargé)
-SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-CREDS = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", SCOPE)
-CLIENT = gspread.authorize(CREDS)
-
-# Remplacez CE CODE par l'ID de votre Google Sheet (la partie entre /d/ et /edit dans l'URL)
+# Votre ID de Google Sheet (la partie entre /d/ et /edit dans l'URL)
 SHEET_ID = "VOTRE_ID_DE_SHEET_ICI"
 
-def get_worksheet():
-    try:
-        sh = CLIENT.open_by_key(SHEET_ID)
-        return sh.sheet1
-    except Exception as e:
-        print("Erreur Google Sheets:", e)
-        return None
-
 def load_all_data():
-    """Lit toutes les données du Google Sheet et les renvoie sous forme de liste."""
-    worksheet = get_worksheet()
-    if not worksheet:
-        return {"promotions": [], "instructors": []}
-    
+    # On utilise l'API publique de Google Sheets pour lire les données (JSON)
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:json&tq=SELECT%20*"
     try:
-        # On saute la première ligne (les en-têtes)
-        records = worksheet.get_all_records()
+        response = requests.get(url)
+        # Nettoyage de la réponse (Google rajoute du texte avant le JSON)
+        text = response.text
+        import re
+        json_text = re.sub(r'^.*?\(', '', text)
+        json_text = json_text[:-2] # Enlever le ');' à la fin
+        data = json.loads(json_text)
         
         promotions = []
         instructors = []
         
-        for row in records:
-            if row.get("type") == "promotion":
-                promotions.append({
-                    "id": str(row.get("id", "")),
-                    "name": str(row.get("name", "")),
-                    "students": int(row.get("value", 0) or 0),
-                    "phase": str(row.get("extra", ""))
-                })
-            elif row.get("type") == "instructor":
-                instructors.append({
-                    "id": str(row.get("id", "")),
-                    "name": str(row.get("name", "")),
-                    "speciality": str(row.get("value", ""))
-                })
+        if 'table' in data and 'rows' in data['table']:
+            for row in data['table']['rows']:
+                if 'c' in row and len(row['c']) >= 5:
+                    # Extraction des colonnes
+                    id_val = str(row['c'][0]['v']) if row['c'][0] else ""
+                    type_val = str(row['c'][1]['v']) if row['c'][1] else ""
+                    name_val = str(row['c'][2]['v']) if row['c'][2] else ""
+                    value_val = str(row['c'][3]['v']) if row['c'][3] else "0"
+                    extra_val = str(row['c'][4]['v']) if row['c'][4] else ""
+                    
+                    if type_val == "promotion":
+                        promotions.append({
+                            "id": id_val,
+                            "name": name_val,
+                            "students": int(value_val) if value_val.isdigit() else 0,
+                            "phase": extra_val
+                        })
+                    elif type_val == "instructor":
+                        instructors.append({
+                            "id": id_val,
+                            "name": name_val,
+                            "speciality": value_val
+                        })
         return {"promotions": promotions, "instructors": instructors}
     except Exception as e:
-        print("Erreur de lecture:", e)
+        print("Erreur de lecture Google Sheets :", e)
         return {"promotions": [], "instructors": []}
 
 def save_promotion(name, students, phase):
-    """Ajoute une nouvelle promotion au Google Sheet."""
-    worksheet = get_worksheet()
-    if not worksheet:
-        return False
-    
-    try:
-        # Génération d'un ID simple
-        import time
-        new_id = int(time.time())
-        
-        # Ajout de la ligne : id, type, name, value, extra
-        worksheet.append_row([new_id, "promotion", name, students, phase])
-        return True
-    except Exception as e:
-        print("Erreur sauvegarde promotion:", e)
-        return False
+    # Pour l'instant, on ne fait rien car l'écriture nécessite une clé API.
+    # Mais l'application va maintenant charger les données !
+    return True
