@@ -26,10 +26,11 @@ shared_data = load_all_data()
 promotions = json.dumps(shared_data.get("promotions", []))
 instructors = json.dumps(shared_data.get("instructors", []))
 
+# Lecture des paramètres de l'URL
 action = st.query_params.get("action")
-data_str = st.query_params.get("data")  // Pour la génération
+data_str = st.query_params.get("data")  # Pour la génération
 password = st.query_params.get("password")
-id_str = st.query_params.get("id")      // Pour la suppression
+id_str = st.query_params.get("id")      # Pour la suppression
 
 # --- PROTECTION BACKEND ---
 if action in ["generate", "delete", "edit"] and password != MASTER_PASSWORD:
@@ -66,7 +67,7 @@ elif action == "generate" and data_str:
         st.query_params.status = "failure"
         st.query_params.message = str(e)
 
-# --- SUPPRESSION DE PROMOTION (CORRIGÉE) ---
+# --- SUPPRESSION DE PROMOTION ---
 elif action == "delete" and id_str:
     try:
         promo_id = id_str
