@@ -2,9 +2,11 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import json
-from storage import load_all_data, save_promotion
+from storage import load_all_data, save_all_data
 
-st.set_page_config(page_title="ATC Planner - Synchronisé", layout="wide")
+st.set_page_config(page_title="ATC Planner - Partagé", layout="wide")
+
+MASTER_PASSWORD = "PILOTE2026"
 
 def load_file(filename):
     try:
@@ -20,42 +22,54 @@ js = load_file('app.js')
 html = html.replace('<link rel="stylesheet" href="styles.css" />', f'<style>{css}</style>')
 html = html.replace('<script src="app.js"></script>', f'<script>{js}</script>')
 
-# --- CHARGEMENT DES DONNÉES ---
-shared = load_all_data()
+shared_data = load_all_data()
+promotions = json.dumps(shared_data.get("promotions", []))
+instructors = json.dumps(shared_data.get("instructors", []))
 
-# Si la base est KO, on envoie des données vides, le JS utilisera le localStorage
-if shared is None:
-    shared = {"data": {"promotions": [], "instructors": []}, "updated_at": None}
-
-promotions = json.dumps(shared["data"]["promotions"])
-instructors = json.dumps(shared["data"]["instructors"])
-last_update = json.dumps(shared["updated_at"]) 
-
-# --- SAUVEGARDE ---
 action = st.query_params.get("action")
 data_str = st.query_params.get("data")
+password = st.query_params.get("password")
 
-if action == "generate" and data_str:
+# --- PROTECTION BACKEND ---
+if action in ["generate", "delete", "edit"] and password != MASTER_PASSWORD:
+    st.query_params.clear()
+    st.query_params.action = "result"
+    st.query_params.status = "failure"
+    st.query_params.message = "🔒 Mot de passe incorrect. Les données sont en lecture seule."
+
+elif action == "generate" and data_str:
     try:
         data = json.loads(data_str)
-        success = save_promotion(data['name'], data['students'], data['phase'])
-        st.query_params.clear()
-        st.query_params.action = "result"
-        st.query_params.status = "success" if success else "failure"
-        st.query_params.message = "Promotion enregistrée !" if success else "Erreur de sauvegarde (Supabase injoignable)."
+        import time
+        new_promo = {
+            "id": str(int(time.time())),
+            "name": data['name'],
+            "students": data['students'],
+            "phase": data['phase']
+        }
+        shared_data["promotions"].append(new_promo)
+        if save_all_data(shared_data):
+            st.query_params.clear()
+            st.query_params.action = "result"
+            st.query_params.status = "success"
+            st.query_params.message = "Promotion enregistrée dans l'espace partagé !"
+        else:
+            st.query_params.clear()
+            st.query_params.action = "result"
+            st.query_params.status = "failure"
+            st.query_params.message = "Erreur de sauvegarde."
     except Exception as e:
         st.query_params.clear()
         st.query_params.action = "result"
         st.query_params.status = "failure"
         st.query_params.message = str(e)
 
-# --- INJECTION DES DONNÉES ---
+# --- INJECTION ---
 data_injection = f"""
 <script>
     window.__SHARED_PROMOTIONS = {promotions};
     window.__SHARED_INSTRUCTORS = {instructors};
-    window.__LAST_UPDATE = {last_update};
-    console.log("📦 Données partagées reçues de Python :", {len(shared['data']['promotions'])});
+    window.__MASTER_PASSWORD = "{MASTER_PASSWORD}";
 </script>
 """
 html = html.replace('</body>', data_injection + '</body>')
