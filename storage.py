@@ -1,44 +1,42 @@
-# storage.py - Version Supabase Partagée
+# storage.py
 import requests
 import json
+import time
 
-# --- CONFIGURATION SUPABASE ---
-# Remplacez ces deux lignes par vos vraies valeurs
 SUPABASE_URL = "https://bwctfhuwpbkxnebqslpn.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3Y3RmaHV3cGJreG5lYnFzbHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NzQ2NTQsImV4cCI6MjEwMjE1MDY1NH0.5zSMn62M-PMwwOurNsVGPMJeRnKyEbmBnA3-nZ7jtM0"
 
-# --- FONCTIONS SUPABASE ---
 def load_all_data():
     """Lit les données depuis Supabase."""
     try:
-        url = f"{SUPABASE_URL}/rest/v1/shared_data?select=data&order=created_at.desc&limit=1"
+        url = f"{SUPABASE_URL}/rest/v1/shared_data?select=data,created_at&order=created_at.desc&limit=1"
         headers = {
             "apikey": SUPABASE_KEY,
             "Authorization": f"Bearer {SUPABASE_KEY}"
         }
         response = requests.get(url, headers=headers)
         if response.status_code == 200 and response.json():
-            return response.json()[0]['data']
+            record = response.json()[0]
+            # On retourne les données ET le timestamp
+            return {
+                "data": record['data'],
+                "updated_at": record['created_at']
+            }
     except:
         pass
-    # Si aucune donnée, on retourne une structure vide
-    return {"promotions": [], "instructors": []}
+    return {"data": {"promotions": [], "instructors": []}, "updated_at": None}
 
 def save_promotion(name, students, phase):
-    """Écrit une promotion dans Supabase."""
     try:
-        # 1. On lit les données actuelles
-        current_data = load_all_data()
-        import time
+        current = load_all_data()
         new_promo = {
             "id": str(int(time.time())),
             "name": name,
             "students": students,
             "phase": phase
         }
-        current_data["promotions"].append(new_promo)
+        current["data"]["promotions"].append(new_promo)
         
-        # 2. On sauvegarde tout dans Supabase
         url = f"{SUPABASE_URL}/rest/v1/shared_data"
         headers = {
             "apikey": SUPABASE_KEY,
@@ -46,10 +44,7 @@ def save_promotion(name, students, phase):
             "Content-Type": "application/json",
             "Prefer": "return=minimal"
         }
-        payload = {"data": current_data}
-        response = requests.post(url, headers=headers, json=payload)
-        
-        return response.status_code in [200, 201, 204]
-    except Exception as e:
-        print("Erreur Supabase:", e)
+        requests.post(url, headers=headers, json={"data": current["data"]})
+        return True
+    except:
         return False
