@@ -15,43 +15,42 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# CSS ULTIME POUR LE FULL PAGE
+# --- CSS ULTIME POUR LE FULL PAGE (COLLAGE AUX COINS) ---
 st.markdown(
     """
     <style>
-      /* Suppression de tous les éléments par défaut de Streamlit */
+      /* 1. Cacher absolument tout ce qui est Streamlit */
       #MainMenu, header, footer, [data-testid="stToolbar"],
-      [data-testid="stStatusWidget"], [data-testid="stDecoration"] { display: none !important; }
-      
-      /* Suppression de tous les paddings et marges */
-      [data-testid="stAppViewContainer"], [data-testid="stMain"] { 
-          background: #f7f9fd !important; 
-          padding: 0 !important;
+      [data-testid="stStatusWidget"], [data-testid="stDecoration"],
+      [data-testid="stAppViewContainer"], [data-testid="stMain"],
+      [data-testid="stMainBlockContainer"], [data-testid="stVerticalBlock"] {
+          all: unset !important;
+          display: none !important;
           margin: 0 !important;
-      }
-      [data-testid="stMainBlockContainer"] { 
-          max-width: none !important; 
-          padding: 0 !important; 
-          margin: 0 !important;
-      }
-      [data-testid="stVerticalBlock"] { gap: 0 !important; }
-      div[data-testid="stElementContainer"]:has(iframe) { 
-          width: 100vw !important; 
-          margin: 0 !important; 
           padding: 0 !important;
+          height: 0 !important;
+          width: 0 !important;
       }
-      
-      /* Forçage de l'iframe à 100% de la fenêtre */
-      iframe { 
-          border: 0 !important; 
-          width: 100vw !important; 
-          height: 100vh !important; 
+
+      /* 2. Forcer l'iframe à couvrir 100% de l'écran */
+      iframe {
           position: fixed !important;
           top: 0 !important;
           left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          border: none !important;
           z-index: 9999 !important;
           margin: 0 !important;
           padding: 0 !important;
+          display: block !important;
+      }
+      
+      /* 3. Supprimer les marges résiduelles du body */
+      body {
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
       }
     </style>
     """,
@@ -68,5 +67,5 @@ html_template = html_template.replace(
 )
 html_template = html_template.replace('<script src="app.js"></script>', f"<script>{javascript}</script>")
 
-# height=None permet à l'iframe de prendre toute la place disponible
+# height=None permet à l'iframe de prendre la hauteur que le CSS lui impose
 components.html(html_template, height=None, scrolling=True)
