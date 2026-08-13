@@ -15,44 +15,17 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# CSS ULTIME POUR LE FULL PAGE (Suppression de tous les espaces blancs)
+# Present the planner as the application, not as a small card inside Streamlit.
 st.markdown(
     """
     <style>
-      /* Suppression de tous les éléments par défaut de Streamlit */
       #MainMenu, header, footer, [data-testid="stToolbar"],
       [data-testid="stStatusWidget"], [data-testid="stDecoration"] { display: none !important; }
-      
-      /* Suppression des fonds blancs et des marges */
-      [data-testid="stAppViewContainer"], [data-testid="stMain"] { 
-          background: #f7f9fd !important; 
-          padding: 0 !important;
-          margin: 0 !important;
-      }
-      [data-testid="stMainBlockContainer"] { 
-          max-width: none !important; 
-          padding: 0 !important; 
-          margin: 0 !important;
-      }
+      [data-testid="stAppViewContainer"], [data-testid="stMain"] { background: #f7f9fd !important; }
+      [data-testid="stMainBlockContainer"] { max-width: none !important; padding: 0 !important; }
       [data-testid="stVerticalBlock"] { gap: 0 !important; }
-      div[data-testid="stElementContainer"]:has(iframe) { 
-          width: 100vw !important; 
-          margin: 0 !important; 
-          padding: 0 !important;
-      }
-      
-      /* Forçage de l'iframe à 100% de la fenêtre */
-      iframe { 
-          border: 0 !important; 
-          width: 100vw !important; 
-          height: 100vh !important; 
-          position: fixed !important;
-          top: 0 !important;
-          left: 0 !important;
-          z-index: 9999 !important;
-          margin: 0 !important;
-          padding: 0 !important;
-      }
+      div[data-testid="stElementContainer"]:has(iframe) { width: 100vw !important; margin: 0 !important; }
+      iframe { border: 0 !important; width: 100% !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -69,5 +42,4 @@ html_template = html_template.replace(
 )
 html_template = html_template.replace('<script src="app.js"></script>', f"<script>{javascript}</script>")
 
-# height=None est crucial pour que l'iframe prenne toute la place
-components.html(html_template, height=None, scrolling=True)
+components.html(html_template, height=2100, scrolling=True)
