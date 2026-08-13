@@ -1,4 +1,5 @@
-// app.js - Version Complète avec Sync Supabase Prioritaire
+// app.js - GUARANTEED SYNC (Pause for Cloud)
+
 const defaultResources = [
   { id: 'twr', name: 'TWR 1–4', positions: 4, icon: '♜', phases: ['aerodrome'], availability: 'Disponible', type: 'TWR' },
   { id: 'radar1', name: 'RADAR 1', positions: 4, icon: '◉', phases: ['approach-procedure', 'approach-radar'], availability: 'Disponible', type: 'APP' },
@@ -23,6 +24,7 @@ const storageKey = 'atc-planner-management-v3';
 const defaultSettings = { academyName: 'Aviation Academy', userName: 'Utilisateur', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45 };
 const remoteConfig = window.ATC_SUPABASE_CONFIG || {};
 const remoteState = { enabled: Boolean(remoteConfig.url && remoteConfig.anonKey), loaded: false, timer: null };
+
 function normaliseManagementData(saved) {
   if (!saved || !Array.isArray(saved.promotions) || !Array.isArray(saved.instructors)) return null;
   const demonstrationIds = new Set(['p-a', 'p-b', 'p-c', 'p-d', 'i-sophie', 'i-thomas', 'i-julien', 'i-camille', 'i-marc']);
