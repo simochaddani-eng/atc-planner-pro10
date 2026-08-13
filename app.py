@@ -9,6 +9,12 @@ st.set_page_config(page_title="ATC Planner - AIAC", layout="wide")
 if 'scheduler' not in st.session_state:
     st.session_state.scheduler = ATCSchedulerORTools()
 
+# --- NOUVEAU : Sync immédiate avec Supabase au démarrage ---
+# Cela force le backend à lire les promotions dès que l'application s'ouvre.
+if 'promotions_synced' not in st.session_state:
+    st.session_state.promotions_synced = st.session_state.scheduler.get_all_promotions()
+    st.session_state.promotions_loaded = True
+
 def load_file(filename):
     try:
         with open(filename, 'r', encoding='utf-8') as f:
@@ -41,6 +47,9 @@ if action == "generate" and data_str:
             available_positions=int(data['positions']),
             daily_hours=data['dailyHours']
         )
+        # On rafraîchit la liste des promotions immédiatement après création
+        st.session_state.promotions_synced = st.session_state.scheduler.get_all_promotions()
+        
         st.query_params.clear()
         st.query_params.action = "result"
         st.query_params.status = result["status"]
@@ -54,6 +63,9 @@ if action == "generate" and data_str:
 elif action == "delete" and id_str:
     try:
         st.session_state.scheduler.delete_promotion(int(id_str))
+        # On rafraîchit la liste des promotions immédiatement après suppression
+        st.session_state.promotions_synced = st.session_state.scheduler.get_all_promotions()
+        
         st.query_params.clear()
         st.query_params.action = "result"
         st.query_params.status = "success"
