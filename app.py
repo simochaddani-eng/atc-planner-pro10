@@ -1,23 +1,13 @@
-# app.py - Backend Injection Fix
+# app.py
 import streamlit as st
 import streamlit.components.v1 as components
 import json
-from supabase import create_client, Client
+from scheduler_ortools import ATCSchedulerORTools
 
 st.set_page_config(page_title="ATC Planner - AIAC", layout="wide")
 
-# --- CONNEXION SUPABASE ---
-SUPABASE_URL = "https://bwctfhuwpbkxnebqslpn.supabase.co"
-
-# Try to get the key from Streamlit Cloud Secrets. Fallback to hardcoded key for local testing.
-try:
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-except Exception:
-    # This is just a fallback for local computer testing. 
-    # On the Cloud, it reads from the Secrets you just pasted above.
-    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3Y3RmaHV3cGJreG5lYnFzbHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NzQ2NTQsImV4cCI6MjEwMjE1MDY1NH0.5zSMn62M-PMwwOurNsVGPMJeRnKyEbmBnA3-nZ7jtM0"
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+if 'scheduler' not in st.session_state:
+    st.session_state.scheduler = ATCSchedulerORTools()
 
 def load_file(filename):
     try:
@@ -30,27 +20,49 @@ html = load_file('index.html')
 css = load_file('styles.css')
 js = load_file('app.js')
 
-# --- INJECTION DU CSS ---
 html = html.replace('<link rel="stylesheet" href="styles.css" />', f'<style>{css}</style>')
+html = html.replace('<script src="app.js"></script>', f'<script>{js}</script>')
 
-# --- INJECTION DES DONNÉES SUPABASE DIRECTEMENT DANS LE HTML ---
-try:
-    response = supabase.table('planner_state').select("data").eq('workspace', 'aiac').execute()
-    if response.data and len(response.data) > 0:
-        backend_data = response.data[0]['data']
-        json_data = json.dumps(backend_data)
-        
-        # On injecte le script qui force l'écrasement du localStorage
-        injection_script = f"""
-        <script>
-            localStorage.setItem('atc-planner-management-v3', '{json_data}');
-            console.log('✅ Données injectées par le Backend');
-        </script>
-        """
-        # On injecte le script juste avant le JS principal
-        html = html.replace('<script src="app.js"></script>', injection_script + '<script src="app.js"></script>')
-except Exception as e:
-    pass 
+# --- ROUTES BACKEND ---
+action = st.query_params.get("action")
+data_str = st.query_params.get("data")
+id_str = st.query_params.get("id")
+
+if action == "generate" and data_str:
+    try:
+        data = json.loads(data_str)
+        result = st.session_state.scheduler.create_phase_and_generate(
+            promo_name=data['name'],
+            student_count=int(data['students']),
+            phase_type=data['phase'],
+            sessions_per_student=int(data['sessions']),
+            duration_min=int(data['duration']),
+            start_date=data['startDate'],
+            available_positions=int(data['positions']),
+            daily_hours=data['dailyHours']
+        )
+        st.query_params.clear()
+        st.query_params.action = "result"
+        st.query_params.status = result["status"]
+        st.query_params.message = result["message"]
+    except Exception as e:
+        st.query_params.clear()
+        st.query_params.action = "result"
+        st.query_params.status = "failure"
+        st.query_params.message = str(e)
+
+elif action == "delete" and id_str:
+    try:
+        st.session_state.scheduler.delete_promotion(int(id_str))
+        st.query_params.clear()
+        st.query_params.action = "result"
+        st.query_params.status = "success"
+        st.query_params.message = "Promotion supprimée."
+    except Exception as e:
+        st.query_params.clear()
+        st.query_params.action = "result"
+        st.query_params.status = "failure"
+        st.query_params.message = str(e)
 
 # --- CSS FULL PAGE ---
 st.markdown("""
