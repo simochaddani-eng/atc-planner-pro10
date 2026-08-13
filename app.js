@@ -20,17 +20,21 @@ const defaultPromotions = [];
 const defaultInstructors = [];
 const storageKey = 'atc-planner-management-v3';
 const defaultSettings = { academyName: 'Aviation Academy', userName: 'Utilisateur', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45 };
+const remoteConfig = window.ATC_SUPABASE_CONFIG || {};
+const remoteState = { enabled: Boolean(remoteConfig.url && remoteConfig.anonKey), loaded: false, timer: null };
+function normaliseManagementData(saved) {
+  if (!saved || !Array.isArray(saved.promotions) || !Array.isArray(saved.instructors)) return null;
+  const demonstrationIds = new Set(['p-a', 'p-b', 'p-c', 'p-d', 'i-sophie', 'i-thomas', 'i-julien', 'i-camille', 'i-marc']);
+  const cleanedPromotions = saved.promotions.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, startDate: item.startDate || dateKey(new Date()), sessionDuration: Math.max(1, Number(item.sessionDuration) || 45), dayStart: item.dayStart || '09:00', dayEnd: item.dayEnd || '16:30', breakDuration: Math.max(0, Number(item.breakDuration) || 0) }));
+  const cleanedInstructors = saved.instructors.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, speciality: item.speciality === 'RADAR' ? 'Approche Radar' : item.speciality === 'TWR & RADAR' ? 'TWR + Approche Radar' : item.speciality }));
+  return { promotions: cleanedPromotions, instructors: cleanedInstructors, resources: Array.isArray(saved.resources) && saved.resources.length ? saved.resources : defaultResources, students: Array.isArray(saved.students) ? saved.students : [], settings: { ...defaultSettings, ...(saved.settings || {}) }, maintenance: saved.maintenance || null };
+}
 function loadManagementData() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('atc-planner-management-v2') || localStorage.getItem('atc-planner-management-v1'));
-    if (saved && Array.isArray(saved.promotions) && Array.isArray(saved.instructors)) {
-      const demonstrationIds = new Set(['p-a', 'p-b', 'p-c', 'p-d', 'i-sophie', 'i-thomas', 'i-julien', 'i-camille', 'i-marc']);
-      const cleanedPromotions = saved.promotions.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, startDate: item.startDate || dateKey(new Date()), sessionDuration: item.sessionDuration || 45, dayStart: item.dayStart || '09:00', dayEnd: item.dayEnd || '16:30' }));
-      const cleanedInstructors = saved.instructors.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, speciality: item.speciality === 'RADAR' ? 'Approche Radar' : item.speciality === 'TWR & RADAR' ? 'TWR + Approche Radar' : item.speciality }));
-      return { promotions: cleanedPromotions, instructors: cleanedInstructors, resources: Array.isArray(saved.resources) ? saved.resources : defaultResources, students: Array.isArray(saved.students) ? saved.students : [], settings: { ...defaultSettings, ...(saved.settings || {}) } };
-    }
+    const normalised = normaliseManagementData(saved); if (normalised) return normalised;
   } catch (_) { /* Local storage can be disabled when opening a local file. */ }
-  return { promotions: defaultPromotions, instructors: defaultInstructors, resources: defaultResources, students: [], settings: defaultSettings };
+  return { promotions: defaultPromotions, instructors: defaultInstructors, resources: defaultResources, students: [], settings: defaultSettings, maintenance: null };
 }
 const management = loadManagementData();
 let promotions = management.promotions;
@@ -38,8 +42,39 @@ let instructors = management.instructors;
 let resources = management.resources;
 let students = management.students;
 let settings = management.settings;
+state.maintenance = management.maintenance;
+function snapshotManagementData() { return { promotions, instructors, resources, students, settings, maintenance: state.maintenance }; }
+function cacheManagementData() {
+  try { localStorage.setItem(storageKey, JSON.stringify(snapshotManagementData())); } catch (_) { /* Changes remain available during this visit. */ }
+}
 function persistManagementData() {
-  try { localStorage.setItem(storageKey, JSON.stringify({ promotions, instructors, resources, students, settings })); } catch (_) { /* Changes remain available during this visit. */ }
+  cacheManagementData();
+  if (remoteState.enabled && remoteState.loaded) queueRemoteSave();
+}
+function remoteHeaders(prefer = '') { return { apikey: remoteConfig.anonKey, Authorization: `Bearer ${remoteConfig.anonKey}`, 'Content-Type': 'application/json', ...(prefer ? { Prefer: prefer } : {}) }; }
+function remoteEndpoint() { return `${String(remoteConfig.url).replace(/\/$/, '')}/rest/v1/planner_state`; }
+function queueRemoteSave() {
+  clearTimeout(remoteState.timer);
+  remoteState.timer = setTimeout(async () => {
+    try {
+      const response = await fetch(`${remoteEndpoint()}?on_conflict=workspace`, { method: 'POST', headers: remoteHeaders('resolution=merge-duplicates,return=minimal'), body: JSON.stringify({ workspace: remoteConfig.workspace || 'academy', data: snapshotManagementData(), updated_at: new Date().toISOString() }) });
+      if (!response.ok) throw new Error(await response.text());
+    } catch (_) { showToast('Données enregistrées localement ; la synchronisation Supabase sera réessayée.'); }
+  }, 450);
+}
+async function loadRemoteManagementData() {
+  if (!remoteState.enabled) return;
+  try {
+    const workspace = encodeURIComponent(remoteConfig.workspace || 'academy');
+    const response = await fetch(`${remoteEndpoint()}?workspace=eq.${workspace}&select=data`, { headers: remoteHeaders() });
+    if (!response.ok) throw new Error(await response.text());
+    const rows = await response.json(); const shared = normaliseManagementData(rows?.[0]?.data);
+    remoteState.loaded = true;
+    if (shared) {
+      promotions = shared.promotions; instructors = shared.instructors; resources = shared.resources; students = shared.students; settings = shared.settings; state.maintenance = shared.maintenance;
+      cacheManagementData(); renderAllData(); showToast('Données partagées synchronisées.');
+    } else queueRemoteSave();
+  } catch (_) { showToast('Supabase indisponible : les données restent enregistrées sur cet appareil.'); }
 }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[char]); }
 function initials(name) { return name.split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase(); }
@@ -751,7 +786,26 @@ function setView(viewId) {
   if (viewId === 'students') renderStudents();
   if (viewId === 'reports') renderReports();
   if (viewId === 'settings') renderSettings();
+  if ($('.sidebar').classList.contains('open')) $('.sidebar').classList.remove('open');
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderAllData() {
+  renderUserProfile(); renderResourceSelector(); renderResourceSummary(); renderResourceCards(); renderPromotions(); renderInstructors(); renderInstructorPills(); updateEstimates(); renderDashboard(); renderWeekGrid(); renderGeneratedPlan(); renderPhaseTracking(); renderSessions(); renderStudents(); renderReports(); renderSettings();
+}
+function toggleSidebar() {
+  const sidebar = $('.sidebar'); const menuButton = $('.menu-button');
+  const narrow = window.matchMedia('(max-width: 820px)').matches;
+  if (narrow) {
+    sidebar.classList.toggle('open');
+    menuButton.setAttribute('aria-expanded', String(sidebar.classList.contains('open')));
+    return;
+  }
+  document.body.classList.toggle('menu-collapsed');
+  menuButton.setAttribute('aria-expanded', String(!document.body.classList.contains('menu-collapsed')));
+}
+function collapseSidebar() {
+  $('.sidebar').classList.remove('open'); document.body.classList.add('menu-collapsed'); $('.menu-button').setAttribute('aria-expanded', 'false');
 }
 
 function setupEvents() {
@@ -795,7 +849,8 @@ function setupEvents() {
   });
   $('#saveSettings').addEventListener('click', saveSettings);
   $('#editUserProfile').addEventListener('click', userProfileModal);
-  $('.menu-button').addEventListener('click', () => $('.sidebar').classList.toggle('open'));
+  $('.menu-button').addEventListener('click', toggleSidebar);
+  $('.collapse').addEventListener('click', collapseSidebar);
   document.addEventListener('click', event => {
     const promotionButton = event.target.closest('[data-promo-action]');
     const phaseButton = event.target.closest('[data-set-phase]');
@@ -826,9 +881,9 @@ function setupEvents() {
     if (event.target.closest('[data-save-instructor]')) addInstructorFromModal(event.target.closest('[data-save-instructor]').dataset.saveInstructor);
     if (event.target.id === 'saveStudent') saveStudentFromModal();
     if (event.target.id === 'saveUserProfile') saveUserProfile();
-    if (event.target.id === 'saveMaintenance') { state.maintenance = { resourceId: $('#maintenanceResource').value, date: $('#maintenanceDate').value, reason: $('#maintenanceReason').value.trim() || 'Maintenance' }; renderWeekGrid(); renderDashboard(); closeModal(); showToast('Indisponibilité ajoutée au planning.'); }
+    if (event.target.id === 'saveMaintenance') { state.maintenance = { resourceId: $('#maintenanceResource').value, date: $('#maintenanceDate').value, reason: $('#maintenanceReason').value.trim() || 'Maintenance' }; persistManagementData(); renderWeekGrid(); renderDashboard(); closeModal(); showToast('Indisponibilité ajoutée au planning.'); }
   });
 }
 
 if (!$('#startDate').value) $('#startDate').value = dateKey(new Date());
-updateCurrentClock(); setInterval(updateCurrentClock, 10000); renderUserProfile(); renderResourceSelector(); renderResourceSummary(); renderResourceCards(); renderPromotions(); renderInstructors(); renderInstructorPills(); updateEstimates(); renderDashboard(); renderWeekGrid(); renderGeneratedPlan(); renderPhaseTracking(); renderSessions(); renderStudents(); renderReports(); renderSettings(); setupEvents();
+updateCurrentClock(); setInterval(updateCurrentClock, 10000); renderAllData(); setupEvents(); loadRemoteManagementData();
