@@ -1,10 +1,10 @@
-# app.py - Version totale sans librairie externe
+# app.py
 import streamlit as st
 import streamlit.components.v1 as components
 import json
 from storage import load_all_data, save_promotion
 
-st.set_page_config(page_title="ATC Planner - Partagé (Cache)", layout="wide")
+st.set_page_config(page_title="ATC Planner - Synchronisé", layout="wide")
 
 def load_file(filename):
     try:
@@ -20,12 +20,15 @@ js = load_file('app.js')
 html = html.replace('<link rel="stylesheet" href="styles.css" />', f'<style>{css}</style>')
 html = html.replace('<script src="app.js"></script>', f'<script>{js}</script>')
 
-# --- LECTURE DES DONNÉES PARTAGÉES VIA LE CACHE ---
-shared_data = load_all_data()
-promotions = json.dumps(shared_data["promotions"])
-instructors = json.dumps(shared_data["instructors"])
+# --- CHARGEMENT DES DONNÉES ---
+shared = load_all_data()
 
-# --- INTERCEPTION DE L'ACTION "GENERATE" POUR SAUVEGARDER ---
+# CORRECTION ICI : On accède à shared["data"]["promotions"]
+promotions = json.dumps(shared["data"]["promotions"])
+instructors = json.dumps(shared["data"]["instructors"])
+last_update = json.dumps(shared["updated_at"]) 
+
+# --- SAUVEGARDE ---
 action = st.query_params.get("action")
 data_str = st.query_params.get("data")
 
@@ -36,24 +39,23 @@ if action == "generate" and data_str:
         st.query_params.clear()
         st.query_params.action = "result"
         st.query_params.status = "success" if success else "failure"
-        st.query_params.message = "Promotion enregistrée sur le serveur !" if success else "Erreur de sauvegarde."
+        st.query_params.message = "Promotion enregistrée !" if success else "Erreur."
     except Exception as e:
         st.query_params.clear()
         st.query_params.action = "result"
         st.query_params.status = "failure"
         st.query_params.message = str(e)
 
-# --- INJECTION DES DONNÉES DANS LE JAVASCRIPT ---
+# --- INJECTION DES DONNÉES ET DE LA SYNCHRO ---
 data_injection = f"""
 <script>
     window.__SHARED_PROMOTIONS = {promotions};
     window.__SHARED_INSTRUCTORS = {instructors};
-    console.log("✅ Données du serveur chargées ! Promos:", {len(shared_data['promotions'])});
+    window.__LAST_UPDATE = {last_update};
 </script>
 """
 html = html.replace('</body>', data_injection + '</body>')
 
-# --- CSS PLEIN ÉCRAN ---
 st.markdown("""
 <style>
     #MainMenu, header, footer, [data-testid="stToolbar"] { display: none !important; }
