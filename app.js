@@ -1,3 +1,5 @@
+// app.js - Version avec Fallback Local (Priorité au cache)
+
 const defaultResources = [
   { id: 'twr', name: 'TWR 1–4', positions: 4, icon: '♜', phases: ['aerodrome'], availability: 'Disponible', type: 'TWR' },
   { id: 'radar1', name: 'RADAR 1', positions: 4, icon: '◉', phases: ['approach-procedure', 'approach-radar'], availability: 'Disponible', type: 'APP' },
@@ -22,27 +24,38 @@ const storageKey = 'atc-planner-management-v3';
 const defaultSettings = { academyName: 'Aviation Academy', userName: 'Utilisateur', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45 };
 const remoteConfig = window.ATC_SUPABASE_CONFIG || {};
 const remoteState = { enabled: Boolean(remoteConfig.url && remoteConfig.anonKey), loaded: false, timer: null };
-function normaliseManagementData(saved) {
-  if (!saved || !Array.isArray(saved.promotions) || !Array.isArray(saved.instructors)) return null;
-  const demonstrationIds = new Set(['p-a', 'p-b', 'p-c', 'p-d', 'i-sophie', 'i-thomas', 'i-julien', 'i-camille', 'i-marc']);
-  const cleanedPromotions = saved.promotions.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, startDate: item.startDate || dateKey(new Date()), sessionDuration: Math.max(1, Number(item.sessionDuration) || 45), dayStart: item.dayStart || '09:00', dayEnd: item.dayEnd || '16:30', breakDuration: Math.max(0, Number(item.breakDuration) || 0) }));
-  const cleanedInstructors = saved.instructors.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, speciality: item.speciality === 'RADAR' ? 'Approche Radar' : item.speciality === 'TWR & RADAR' ? 'TWR + Approche Radar' : item.speciality }));
-  return { promotions: cleanedPromotions, instructors: cleanedInstructors, resources: Array.isArray(saved.resources) && saved.resources.length ? saved.resources : defaultResources, students: Array.isArray(saved.students) ? saved.students : [], settings: { ...defaultSettings, ...(saved.settings || {}) }, maintenance: saved.maintenance || null };
-}
-function loadManagementData() {
-  try {
+
+// --- 1. CHARGEMENT DES DONNÉES LOCALES (PRIORITÉ ABSOLUE) ---
+let promotions = [];
+let instructors = [];
+let resources = defaultResources;
+let students = [];
+let settings = defaultSettings;
+
+try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('atc-planner-management-v2') || localStorage.getItem('atc-planner-management-v1'));
-    const normalised = normaliseManagementData(saved); if (normalised) return normalised;
-  } catch (_) { /* Local storage can be disabled when opening a local file. */ }
-  return { promotions: defaultPromotions, instructors: defaultInstructors, resources: defaultResources, students: [], settings: defaultSettings, maintenance: null };
+    if (saved) {
+        promotions = saved.promotions || [];
+        instructors = saved.instructors || [];
+        resources = Array.isArray(saved.resources) && saved.resources.length ? saved.resources : defaultResources;
+        students = saved.students || [];
+        settings = { ...defaultSettings, ...(saved.settings || {}) };
+        state.maintenance = saved.maintenance || null;
+        console.log("💾 Données locales chargées avec succès depuis le cache.");
+    }
+} catch (_) { /* Le stockage local peut être désactivé */ }
+
+// --- 2. ÉCRASEMENT PAR LES DONNÉES SUPABASE (SI DISPONIBLES) ---
+if (window.__SHARED_PROMOTIONS && window.__SHARED_PROMOTIONS.length > 0) {
+    promotions = window.__SHARED_PROMOTIONS;
+    console.log("☁️ Données Supabase chargées (écrasent le cache).");
 }
-const management = loadManagementData();
-let promotions = management.promotions;
-let instructors = management.instructors;
-let resources = management.resources;
-let students = management.students;
-let settings = management.settings;
-state.maintenance = management.maintenance;
+
+if (window.__SHARED_INSTRUCTORS && window.__SHARED_INSTRUCTORS.length > 0) {
+    instructors = window.__SHARED_INSTRUCTORS;
+}
+// ------------------------------------------------------------------
+
 function snapshotManagementData() { return { promotions, instructors, resources, students, settings, maintenance: state.maintenance }; }
 function cacheManagementData() {
   try { localStorage.setItem(storageKey, JSON.stringify(snapshotManagementData())); } catch (_) { /* Changes remain available during this visit. */ }
@@ -886,4 +899,4 @@ function setupEvents() {
 }
 
 if (!$('#startDate').value) $('#startDate').value = dateKey(new Date());
-updateCurrentClock(); setInterval(updateCurrentClock, 10000); renderAllData(); setupEvents(); loadRemoteManagementData();
+updateCurrentClock(); setInterval(updateCurrentClock, 10000); renderAllData(); setupEvents();
