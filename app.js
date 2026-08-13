@@ -1,16 +1,3 @@
-// app.js - Version Robuste
-
-// --- VÉRIFICATION DE SÉCURITÉ ---
-// Cette fonction garantit que le DOM est prêt avant de lancer le JS.
-function ready(fn) {
-  if (document.readyState !== 'loading') {
-    fn();
-  } else {
-    document.addEventListener('DOMContentLoaded', fn);
-  }
-}
-// -----------------------------
-
 const defaultResources = [
   { id: 'twr', name: 'TWR 1–4', positions: 4, icon: '♜', phases: ['aerodrome'], availability: 'Disponible', type: 'TWR' },
   { id: 'radar1', name: 'RADAR 1', positions: 4, icon: '◉', phases: ['approach-procedure', 'approach-radar'], availability: 'Disponible', type: 'APP' },
@@ -33,24 +20,17 @@ const defaultPromotions = [];
 const defaultInstructors = [];
 const storageKey = 'atc-planner-management-v3';
 const defaultSettings = { academyName: 'Aviation Academy', userName: 'Utilisateur', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45 };
-
-// --- PARTIE COMMUNICATION SUPABASE ---
-const remoteConfig = window.ATC_SUPABASE_CONFIG || {};
-const remoteState = { enabled: Boolean(remoteConfig.url && remoteConfig.anonKey), loaded: false, timer: null };
-
-function normaliseManagementData(saved) {
-  if (!saved || !Array.isArray(saved.promotions) || !Array.isArray(saved.instructors)) return null;
-  const demonstrationIds = new Set(['p-a', 'p-b', 'p-c', 'p-d', 'i-sophie', 'i-thomas', 'i-julien', 'i-camille', 'i-marc']);
-  const cleanedPromotions = saved.promotions.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, startDate: item.startDate || dateKey(new Date()), sessionDuration: Math.max(1, Number(item.sessionDuration) || 45), dayStart: item.dayStart || '09:00', dayEnd: item.dayEnd || '16:30', breakDuration: Math.max(0, Number(item.breakDuration) || 0) }));
-  const cleanedInstructors = saved.instructors.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, speciality: item.speciality === 'RADAR' ? 'Approche Radar' : item.speciality === 'TWR & RADAR' ? 'TWR + Approche Radar' : item.speciality }));
-  return { promotions: cleanedPromotions, instructors: cleanedInstructors, resources: Array.isArray(saved.resources) && saved.resources.length ? saved.resources : defaultResources, students: Array.isArray(saved.students) ? saved.students : [], settings: { ...defaultSettings, ...(saved.settings || {}) }, maintenance: saved.maintenance || null };
-}
 function loadManagementData() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('atc-planner-management-v2') || localStorage.getItem('atc-planner-management-v1'));
-    const normalised = normaliseManagementData(saved); if (normalised) return normalised;
+    if (saved && Array.isArray(saved.promotions) && Array.isArray(saved.instructors)) {
+      const demonstrationIds = new Set(['p-a', 'p-b', 'p-c', 'p-d', 'i-sophie', 'i-thomas', 'i-julien', 'i-camille', 'i-marc']);
+      const cleanedPromotions = saved.promotions.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, startDate: item.startDate || dateKey(new Date()), sessionDuration: item.sessionDuration || 45, dayStart: item.dayStart || '09:00', dayEnd: item.dayEnd || '16:30' }));
+      const cleanedInstructors = saved.instructors.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, speciality: item.speciality === 'RADAR' ? 'Approche Radar' : item.speciality === 'TWR & RADAR' ? 'TWR + Approche Radar' : item.speciality }));
+      return { promotions: cleanedPromotions, instructors: cleanedInstructors, resources: Array.isArray(saved.resources) ? saved.resources : defaultResources, students: Array.isArray(saved.students) ? saved.students : [], settings: { ...defaultSettings, ...(saved.settings || {}) } };
+    }
   } catch (_) { /* Local storage can be disabled when opening a local file. */ }
-  return { promotions: defaultPromotions, instructors: defaultInstructors, resources: defaultResources, students: [], settings: defaultSettings, maintenance: null };
+  return { promotions: defaultPromotions, instructors: defaultInstructors, resources: defaultResources, students: [], settings: defaultSettings };
 }
 const management = loadManagementData();
 let promotions = management.promotions;
@@ -58,39 +38,8 @@ let instructors = management.instructors;
 let resources = management.resources;
 let students = management.students;
 let settings = management.settings;
-state.maintenance = management.maintenance;
-function snapshotManagementData() { return { promotions, instructors, resources, students, settings, maintenance: state.maintenance }; }
-function cacheManagementData() {
-  try { localStorage.setItem(storageKey, JSON.stringify(snapshotManagementData())); } catch (_) { /* Changes remain available during this visit. */ }
-}
 function persistManagementData() {
-  cacheManagementData();
-  if (remoteState.enabled && remoteState.loaded) queueRemoteSave();
-}
-function remoteHeaders(prefer = '') { return { apikey: remoteConfig.anonKey, Authorization: `Bearer ${remoteConfig.anonKey}`, 'Content-Type': 'application/json', ...(prefer ? { Prefer: prefer } : {}) }; }
-function remoteEndpoint() { return `${String(remoteConfig.url).replace(/\/$/, '')}/rest/v1/planner_state`; }
-function queueRemoteSave() {
-  clearTimeout(remoteState.timer);
-  remoteState.timer = setTimeout(async () => {
-    try {
-      const response = await fetch(`${remoteEndpoint()}?on_conflict=workspace`, { method: 'POST', headers: remoteHeaders('resolution=merge-duplicates,return=minimal'), body: JSON.stringify({ workspace: remoteConfig.workspace || 'academy', data: snapshotManagementData(), updated_at: new Date().toISOString() }) });
-      if (!response.ok) throw new Error(await response.text());
-    } catch (_) { showToast('Données enregistrées localement ; la synchronisation Supabase sera réessayée.'); }
-  }, 450);
-}
-async function loadRemoteManagementData() {
-  if (!remoteState.enabled) return;
-  try {
-    const workspace = encodeURIComponent(remoteConfig.workspace || 'academy');
-    const response = await fetch(`${remoteEndpoint()}?workspace=eq.${workspace}&select=data`, { headers: remoteHeaders() });
-    if (!response.ok) throw new Error(await response.text());
-    const rows = await response.json(); const shared = normaliseManagementData(rows?.[0]?.data);
-    remoteState.loaded = true;
-    if (shared) {
-      promotions = shared.promotions; instructors = shared.instructors; resources = shared.resources; students = shared.students; settings = shared.settings; state.maintenance = shared.maintenance;
-      cacheManagementData(); renderAllData(); showToast('Données partagées synchronisées.');
-    } else queueRemoteSave();
-  } catch (_) { showToast('Supabase indisponible : les données restent enregistrées sur cet appareil.'); }
+  try { localStorage.setItem(storageKey, JSON.stringify({ promotions, instructors, resources, students, settings })); } catch (_) { /* Changes remain available during this visit. */ }
 }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[char]); }
 function initials(name) { return name.split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase(); }
@@ -802,40 +751,84 @@ function setView(viewId) {
   if (viewId === 'students') renderStudents();
   if (viewId === 'reports') renderReports();
   if (viewId === 'settings') renderSettings();
-  if ($('.sidebar').classList.contains('open')) $('.sidebar').classList.remove('open');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function renderAllData() {
-  renderUserProfile(); renderResourceSelector(); renderResourceSummary(); renderResourceCards(); renderPromotions(); renderInstructors(); renderInstructorPills(); updateEstimates(); renderDashboard(); renderWeekGrid(); renderGeneratedPlan(); renderPhaseTracking(); renderSessions(); renderStudents(); renderReports(); renderSettings();
-}
-function toggleSidebar() {
-  const sidebar = $('.sidebar'); const menuButton = $('.menu-button');
-  const narrow = window.matchMedia('(max-width: 820px)').matches;
-  if (narrow) {
-    sidebar.classList.toggle('open');
-    menuButton.setAttribute('aria-expanded', String(sidebar.classList.contains('open')));
-    return;
-  }
-  document.body.classList.toggle('menu-collapsed');
-  menuButton.setAttribute('aria-expanded', String(!document.body.classList.contains('menu-collapsed')));
-}
-function collapseSidebar() {
-  $('.sidebar').classList.remove('open'); document.body.classList.add('menu-collapsed'); $('.menu-button').setAttribute('aria-expanded', 'false');
+function setupEvents() {
+  $$('.nav-item').forEach(button => button.addEventListener('click', () => setView(button.dataset.view)));
+  $$('[data-go]').forEach(button => button.addEventListener('click', () => setView(button.dataset.go)));
+  $('#phaseCards').addEventListener('click', event => { const card = event.target.closest('.phase-card'); if (!card) return; state.phase = card.dataset.phase; $$('.phase-card').forEach(item => item.classList.toggle('selected', item === card)); const allowed = new Set(resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible').map(r => r.id)); state.selectedResources = new Set([...state.selectedResources].filter(id => allowed.has(id))); if (!state.selectedResources.size && allowed.size) state.selectedResources.add([...allowed][0]); renderResourceSelector(); renderInstructorPills(); updateEstimates(); });
+  ['studentCount','sessionCount','sessionDuration','breakDuration','dayStart','dayEnd','startDate'].forEach(id => $(`#${id}`).addEventListener('input', updateEstimates));
+  $$('#dayToggles button').forEach(button => button.addEventListener('click', () => { button.classList.toggle('selected'); updateEstimates(); }));
+  $('#generatePlan').addEventListener('click', () => { state.generated = true; const saved = saveCurrentPromotion(); if (!saved) return; const info = calculate(); state.planningWeekStart = dateFromKey(saved.startDate) || new Date(); renderWeekGrid(); renderDashboard(); renderGeneratedPlan(); setView('planning'); showToast(`${info.groups} groupes et ${info.totalRotations} rotations ont été proposés automatiquement.`); });
+  $('#savePromotion').addEventListener('click', () => { state.generated = false; const saved = saveCurrentPromotion(); if (saved) showToast(`Promotion ${saved.name} enregistrée.`); });
+  $('#resetPlanner').addEventListener('click', () => { resetPromotionForm(); showToast('Formulaire de planification réinitialisé.'); });
+  $('#newPromotion').addEventListener('click', () => { resetPromotionForm(); $('#cohortName').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#cohortName').focus(); showToast('Nouvelle promotion : complétez le formulaire puis enregistrez-la.'); });
+  $('#recalculate').addEventListener('click', () => { renderWeekGrid(); renderDashboard(); const conflicts = planningConflicts(); showToast(conflicts.length ? `${conflicts.length} conflit${conflicts.length > 1 ? 's' : ''} à examiner après recalcul.` : 'Planning recalculé : aucun conflit détecté.'); });
+  $('#optimize').addEventListener('click', () => $('#recalculate').click());
+  bindPlanningActions();
+  $('#addMaintenance').addEventListener('click', () => { const date = dateKey(displayedDates()[0]); openModal(`<h3>Ajouter une indisponibilité</h3><p>La position sera bloquée à la date choisie et les conflits éventuels seront signalés.</p><div class="modal-form"><label>Ressource<select id="maintenanceResource">${resources.map(resource => `<option value="${resource.id}">${escapeHtml(resource.name)}</option>`).join('')}</select></label><label>Date<input id="maintenanceDate" type="date" value="${date}" /></label><label>Motif<input id="maintenanceReason" value="Maintenance" /></label></div><div class="modal-actions"><button class="outline-button" id="modalCancel">Annuler</button><button class="primary-button" id="saveMaintenance">Bloquer la ressource</button></div>`); });
+  $('#showConflict').addEventListener('click', () => { const conflicts = planningConflicts(); const details = conflicts.length ? conflicts.map(conflict => `<li>${escapeHtml(conflict.event.title)} · ${formatDate(dateFromKey(conflict.event.date))} · ${conflict.type === 'maintenance' ? 'ressource indisponible' : 'créneau en chevauchement'}</li>`).join('') : '<li>Aucun conflit détecté.</li>'; openModal(`<h3>Contrôles de planning</h3><p>Les alertes sont calculées avec les données que vous avez créées.</p><ul>${details}</ul><p>Modifiez la promotion, une ressource ou une indisponibilité, puis recalculez.</p><div class="modal-actions"><button class="outline-button" id="modalCancel">Fermer</button><button class="primary-button" id="modalRecalculate">Recalculer</button></div>`); });
+  $('#modalClose').addEventListener('click', closeModal); $('#modalBackdrop').addEventListener('click', event => { if (event.target === $('#modalBackdrop')) closeModal(); });
+  $('#openResourceCreator').addEventListener('click', () => resourceModal());
+  $('#addInstructor').addEventListener('click', () => instructorModal());
+  $('#previousPeriod').addEventListener('click', () => { state.planningWeekStart = addDays(state.planningWeekStart, state.planningMode === 'month' ? -28 : -7); renderWeekGrid(); renderDashboard(); });
+  $('#nextPeriod').addEventListener('click', () => { state.planningWeekStart = addDays(state.planningWeekStart, state.planningMode === 'month' ? 28 : 7); renderWeekGrid(); renderDashboard(); });
+  $('#currentPeriod').addEventListener('click', () => { const firstPlanned = promotions.find(promotion => promotion.status === 'Planifiée' && promotion.startDate); state.planningWeekStart = firstPlanned ? dateFromKey(firstPlanned.startDate) : new Date(); renderWeekGrid(); renderDashboard(); });
+  $$('[data-planning-mode]').forEach(button => button.addEventListener('click', () => { state.planningMode = button.dataset.planningMode; $$('[data-planning-mode]').forEach(item => item.classList.toggle('active', item === button)); renderWeekGrid(); showToast(state.planningMode === 'month' ? 'Vue mensuelle affichée.' : 'Vue hebdomadaire affichée.'); }));
+  $('#exportPlanning').addEventListener('click', () => {
+    const rows = [['Promotion', 'Ressource', 'Date', 'Créneau'], ...scheduledEvents().map(event => [event.title, resources.find(resource => resource.id === event.resourceId)?.name || '', event.date, event.time])];
+    const csv = rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(';')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const link = document.createElement('a'); link.href = url; link.download = 'atc-planner-planning.csv'; link.click(); URL.revokeObjectURL(url); showToast('Export du planning téléchargé.');
+  });
+  $('#regenerateGroups').addEventListener('click', () => { renderPhaseTracking(); showToast('Groupes recalculés selon les positions disponibles.'); });
+  $('#sessionFilter').addEventListener('change', renderSessions);
+  $('#exportSessions').addEventListener('click', () => {
+    const rows = [['Promotion / groupe', 'Date', 'Créneau', 'Ressource'], ...scheduledEvents().map(event => [event.title, event.date, event.time, resources.find(resource => resource.id === event.resourceId)?.name || ''])];
+    downloadCsv('atc-planner-sessions.csv', rows); showToast('Export des séances téléchargé.');
+  });
+  $('#addStudent').addEventListener('click', addStudentModal);
+  $('#studentPromotionSelect').addEventListener('change', event => { state.studentPromotionId = event.target.value; renderStudents(); });
+  $('#exportReport').addEventListener('click', () => {
+    const events = scheduledEvents(); const hours = events.reduce((sum, event) => sum + (event.endMinutes - event.startMinutes) / 60, 0);
+    downloadCsv('atc-planner-rapport.csv', [['Indicateur', 'Valeur'], ['Promotions', promotions.length], ['Séances générées', events.length], ['Heures-position', hours.toFixed(2)], ['Étudiants', promotions.reduce((sum, promotion) => sum + (Number(promotion.students) || 0), 0)]]); showToast('Rapport téléchargé.');
+  });
+  $('#saveSettings').addEventListener('click', saveSettings);
+  $('#editUserProfile').addEventListener('click', userProfileModal);
+  $('.menu-button').addEventListener('click', () => $('.sidebar').classList.toggle('open'));
+  document.addEventListener('click', event => {
+    const promotionButton = event.target.closest('[data-promo-action]');
+    const phaseButton = event.target.closest('[data-set-phase]');
+    const instructorButton = event.target.closest('[data-delete-instructor]');
+    const editInstructor = event.target.closest('[data-edit-instructor]');
+    const confirmedPromotion = event.target.closest('[data-confirm-delete-promotion]');
+    const confirmedInstructor = event.target.closest('[data-confirm-delete-instructor]');
+    const editResource = event.target.closest('[data-edit-resource]');
+    const removeResource = event.target.closest('[data-delete-resource]');
+    const saveResource = event.target.closest('[data-save-resource]');
+    const confirmedResource = event.target.closest('[data-confirm-delete-resource]');
+    const removeStudent = event.target.closest('[data-delete-student]');
+    if (promotionButton) { if (promotionButton.dataset.promoAction === 'edit') editPromotion(promotionButton.dataset.promotionId); else if (promotionButton.dataset.promoAction === 'track') { state.trackingPromotionId = promotionButton.dataset.promotionId; setView('phase-tracking'); } else deletePromotion(promotionButton.dataset.promotionId); }
+    if (phaseButton) { const promotion = promotions.find(item => item.id === phaseButton.dataset.trackingPromotion); if (promotion) { promotion.phase = phaseButton.dataset.setPhase; promotion.status = 'En cours'; persistManagementData(); renderPromotions(); renderPhaseTracking(); renderDashboard(); renderWeekGrid(); showToast(`Phase mise à jour : ${phaseLabels[promotion.phase]}.`); } }
+    if (instructorButton) deleteInstructor(instructorButton.dataset.deleteInstructor);
+    if (editInstructor) instructorModal(instructors.find(item => item.id === editInstructor.dataset.editInstructor));
+    if (editResource) resourceModal(resources.find(item => item.id === editResource.dataset.editResource));
+    if (removeResource) deleteResource(removeResource.dataset.deleteResource);
+    if (saveResource) saveResourceFromModal(saveResource.dataset.saveResource);
+    if (confirmedPromotion) { promotions = promotions.filter(item => item.id !== confirmedPromotion.dataset.confirmDeletePromotion); if (state.editingPromotionId === confirmedPromotion.dataset.confirmDeletePromotion) resetPromotionForm(); if (state.trackingPromotionId === confirmedPromotion.dataset.confirmDeletePromotion) state.trackingPromotionId = null; persistManagementData(); renderPromotions(); renderDashboard(); renderWeekGrid(); renderGeneratedPlan(); renderPhaseTracking(); closeModal(); showToast('Promotion supprimée.'); }
+    if (confirmedInstructor) { instructors = instructors.filter(item => item.id !== confirmedInstructor.dataset.confirmDeleteInstructor); persistManagementData(); renderInstructors(); renderInstructorPills(); renderDashboard(); closeModal(); showToast('Instructeur retiré.'); }
+    if (confirmedResource) { resources = resources.filter(item => item.id !== confirmedResource.dataset.confirmDeleteResource); state.selectedResources.delete(confirmedResource.dataset.confirmDeleteResource); persistManagementData(); renderResourceCards(); renderResourceSummary(); renderResourceSelector(); renderDashboard(); renderWeekGrid(); closeModal(); showToast('Ressource supprimée.'); }
+    if (removeStudent) deleteStudent(removeStudent.dataset.deleteStudent);
+    if (event.target.id === 'modalCancel') closeModal();
+    if (event.target.id === 'modalRecalculate') { closeModal(); $('#recalculate').click(); }
+    if (event.target.id === 'modalDone') closeModal();
+    if (event.target.id === 'modalAddInstructor') addInstructorFromModal();
+    if (event.target.closest('[data-save-instructor]')) addInstructorFromModal(event.target.closest('[data-save-instructor]').dataset.saveInstructor);
+    if (event.target.id === 'saveStudent') saveStudentFromModal();
+    if (event.target.id === 'saveUserProfile') saveUserProfile();
+    if (event.target.id === 'saveMaintenance') { state.maintenance = { resourceId: $('#maintenanceResource').value, date: $('#maintenanceDate').value, reason: $('#maintenanceReason').value.trim() || 'Maintenance' }; renderWeekGrid(); renderDashboard(); closeModal(); showToast('Indisponibilité ajoutée au planning.'); }
+  });
 }
 
-// --- CORRECTION ULTIME DU DÉMARRAGE DES BOUTONS ---
-ready(function() {
-    // Initialisation des données
-    renderAllData();
-    
-    // Attachement des événements
-    setupEvents();
-    
-    // Sync Supabase si activé
-    if (remoteState.enabled) {
-        loadRemoteManagementData();
-    }
-    
-    console.log('✅ ATC Planner démarré avec succès.');
-});
+if (!$('#startDate').value) $('#startDate').value = dateKey(new Date());
+updateCurrentClock(); setInterval(updateCurrentClock, 10000); renderUserProfile(); renderResourceSelector(); renderResourceSummary(); renderResourceCards(); renderPromotions(); renderInstructors(); renderInstructorPills(); updateEstimates(); renderDashboard(); renderWeekGrid(); renderGeneratedPlan(); renderPhaseTracking(); renderSessions(); renderStudents(); renderReports(); renderSettings(); setupEvents();
