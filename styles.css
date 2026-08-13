@@ -13,5 +13,4 @@
 @media(max-width:800px){.student-list,.report-grid{grid-template-columns:1fr 1fr}.session-table{overflow-x:auto}.session-table-head,.session-table-row{min-width:650px}.resource-report-row{grid-template-columns:100px 1fr 55px}}
 @media(max-width:480px){.student-list,.report-grid{grid-template-columns:1fr}.student-controls,.settings-footer{align-items:flex-start;flex-direction:column}.settings-footer .primary-button{width:100%}}
 
-/* The user identity is configurable and opens an editor when clicked. */
 .user-profile{display:flex;align-items:center;gap:8px;padding:0;border:0;background:transparent;color:inherit;cursor:pointer;text-align:left;border-radius:7px}.user-profile:hover{background:#f4f7fc}.user-profile .avatar{flex:none}.user-profile .user-name{min-width:92px}.user-profile .chevron{margin-right:4px}
