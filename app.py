@@ -1,5 +1,6 @@
-# app.py
+# app.py - Version Stable avec st.components
 import streamlit as st
+import streamlit.components.v1 as components
 import json
 from scheduler_ortools import ATCSchedulerORTools
 
@@ -20,6 +21,7 @@ html = load_file('index.html')
 css = load_file('styles.css')
 js = load_file('app.js')
 
+# Injection du CSS et JS dans le HTML
 html = html.replace('<link rel="stylesheet" href="styles.css" />', f'<style>{css}</style>')
 html = html.replace('<script src="app.js"></script>', f'<script>{js}</script>')
 
@@ -55,8 +57,7 @@ if action == "generate" and data_str:
 # 2. SUPPRESSION D'UNE PROMOTION
 elif action == "delete" and id_str:
     try:
-        # Appel de la fonction de suppression (à ajouter dans scheduler_ortools.py plus tard)
-        # Pour l'instant, on simule un succès pour débloquer l'interface
+        # Ici, vous appellerez votre fonction de suppression
         st.query_params.clear()
         st.query_params.action = "result"
         st.query_params.status = "success"
@@ -67,25 +68,24 @@ elif action == "delete" and id_str:
         st.query_params.status = "failure"
         st.query_params.message = str(e)
 
-# 3. MODIFICATION D'UNE PROMOTION (Pré-remplissage)
+# 3. MODIFICATION D'UNE PROMOTION
 elif action == "edit" and id_str:
     try:
-        # Redirection vers la page promotion avec l'ID pour pré-remplir
         st.query_params.clear()
         st.query_params.view = "promotions"
         st.query_params.edit_id = id_str
     except Exception as e:
         pass
 
-# Affichage de l'interface
+# --- CSS FULL PAGE (Pour supprimer les barres Streamlit) ---
 st.markdown("""
 <style>
     #MainMenu, header, footer, [data-testid="stToolbar"] { display: none !important; }
-    .main-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; margin: 0; padding: 0; border: none; overflow: hidden; }
-    .main-container iframe { width: 100%; height: 100%; border: none; margin: 0; padding: 0; overflow: hidden; display: block; }
-    body { margin: 0; padding: 0; overflow: hidden; }
+    [data-testid="stAppViewContainer"] { padding: 0 !important; margin: 0 !important; }
+    [data-testid="stMainBlockContainer"] { padding: 0 !important; max-width: none !important; }
+    iframe { width: 100vw !important; height: 100vh !important; border: none !important; position: fixed !important; top: 0 !important; left: 0 !important; z-index: 9999 !important; }
 </style>
-<div class="main-container">
-    <iframe srcdoc='""" + html.replace("'", "\\'") + """'></iframe>
-</div>
 """, unsafe_allow_html=True)
+
+# --- AFFICHAGE DU COMPOSANT (Height=None est crucial) ---
+components.html(html, height=None, scrolling=True)
