@@ -1,19 +1,16 @@
-# app.py
+# app.py - Backend Injection Fix
 import streamlit as st
 import streamlit.components.v1 as components
 import json
-from scheduler_ortools import ATCSchedulerORTools
+from supabase import create_client, Client
 
 st.set_page_config(page_title="ATC Planner - AIAC", layout="wide")
 
-if 'scheduler' not in st.session_state:
-    st.session_state.scheduler = ATCSchedulerORTools()
+# --- CONNEXION SUPABASE (CÔTÉ SERVEUR) ---
+SUPABASE_URL = "https://bwctfhuwpbkxnebqslpn.supabase.co"
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
-# --- NOUVEAU : Sync immédiate avec Supabase au démarrage ---
-# Cela force le backend à lire les promotions dès que l'application s'ouvre.
-if 'promotions_synced' not in st.session_state:
-    st.session_state.promotions_synced = st.session_state.scheduler.get_all_promotions()
-    st.session_state.promotions_loaded = True
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def load_file(filename):
     try:
@@ -26,55 +23,30 @@ html = load_file('index.html')
 css = load_file('styles.css')
 js = load_file('app.js')
 
+# --- INJECTION DU CSS ET JS ---
 html = html.replace('<link rel="stylesheet" href="styles.css" />', f'<style>{css}</style>')
-html = html.replace('<script src="app.js"></script>', f'<script>{js}</script>')
 
-# --- ROUTES BACKEND (API) ---
-action = st.query_params.get("action")
-data_str = st.query_params.get("data")
-id_str = st.query_params.get("id")
-
-if action == "generate" and data_str:
-    try:
-        data = json.loads(data_str)
-        result = st.session_state.scheduler.create_phase_and_generate(
-            promo_name=data['name'],
-            student_count=int(data['students']),
-            phase_type=data['phase'],
-            sessions_per_student=int(data['sessions']),
-            duration_min=int(data['duration']),
-            start_date=data['startDate'],
-            available_positions=int(data['positions']),
-            daily_hours=data['dailyHours']
-        )
-        # On rafraîchit la liste des promotions immédiatement après création
-        st.session_state.promotions_synced = st.session_state.scheduler.get_all_promotions()
+# --- INJECTION DES DONNÉES DIRECTEMENT DANS LE HTML (LA SOLUTION) ---
+# On va chercher les données avec Python, et on les écrit directement dans le HTML.
+try:
+    response = supabase.table('planner_state').select("data").eq('workspace', 'aiac').execute()
+    if response.data and len(response.data) > 0:
+        backend_data = response.data[0]['data']
+        # On transforme les données en string JSON pour les injecter
+        json_data = json.dumps(backend_data)
         
-        st.query_params.clear()
-        st.query_params.action = "result"
-        st.query_params.status = result["status"]
-        st.query_params.message = result["message"]
-    except Exception as e:
-        st.query_params.clear()
-        st.query_params.action = "result"
-        st.query_params.status = "failure"
-        st.query_params.message = str(e)
-
-elif action == "delete" and id_str:
-    try:
-        st.session_state.scheduler.delete_promotion(int(id_str))
-        # On rafraîchit la liste des promotions immédiatement après suppression
-        st.session_state.promotions_synced = st.session_state.scheduler.get_all_promotions()
-        
-        st.query_params.clear()
-        st.query_params.action = "result"
-        st.query_params.status = "success"
-        st.query_params.message = "Promotion supprimée."
-    except Exception as e:
-        st.query_params.clear()
-        st.query_params.action = "result"
-        st.query_params.status = "failure"
-        st.query_params.message = str(e)
+        # On crée un petit script qui écrase le localStorage avant même que l'app.js ne démarre
+        injection_script = f"""
+        <script>
+            // FORCE LE CHARGEMENT DES DONNÉES DU SERVEUR
+            localStorage.setItem('atc-planner-management-v3', '{json_data}');
+            console.log('✅ Données injectées par le Backend');
+        </script>
+        """
+        # On injecte le script juste avant le JS principal
+        html = html.replace('<script src="app.js"></script>', injection_script + '<script src="app.js"></script>')
+except Exception as e:
+    pass # Si ça échoue, l'app utilise juste le localStorage vide (comme avant)
 
 # --- CSS FULL PAGE ---
 st.markdown("""
