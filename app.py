@@ -1,64 +1,31 @@
 # app.py
 import streamlit as st
-import json
-from scheduler_ortools import ATCSchedulerORTools
 
-st.set_page_config(page_title="ATC Planner - AIAC", layout="wide")
+# Le point d'entrée de l'application redirige directement vers le composant HTML
+from streamlit_app import st, components, Path, ROOT, html_template, css, javascript
 
-if 'scheduler' not in st.session_state:
-    st.session_state.scheduler = ATCSchedulerORTools()
+st.set_page_config(
+    page_title="ATC Planner",
+    page_icon="✈",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
-# Lecture du HTML, CSS et JS
-def load_file(filename):
-    try:
-        with open(filename, 'r', encoding='utf-8') as f:
-            return f.read()
-    except FileNotFoundError:
-        return ""
+# Full page CSS
+st.markdown(
+    """
+    <style>
+      #MainMenu, header, footer, [data-testid="stToolbar"],
+      [data-testid="stStatusWidget"], [data-testid="stDecoration"] { display: none !important; }
+      [data-testid="stAppViewContainer"], [data-testid="stMain"] { background: #f7f9fd !important; }
+      [data-testid="stMainBlockContainer"] { max-width: none !important; padding: 0 !important; }
+      [data-testid="stVerticalBlock"] { gap: 0 !important; }
+      div[data-testid="stElementContainer"]:has(iframe) { width: 100vw !important; margin: 0 !important; }
+      iframe { border: 0 !important; width: 100% !important; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-html = load_file('index.html')
-css = load_file('styles.css')
-js = load_file('app.js')
-
-html = html.replace('<link rel="stylesheet" href="styles.css" />', f'<style>{css}</style>')
-html = html.replace('<script src="app.js"></script>', f'<script>{js}</script>')
-
-# --- ROUTE POUR LA GENERATION (BACKEND) ---
-action = st.query_params.get("action")
-data_str = st.query_params.get("data")
-
-if action == "generate" and data_str:
-    try:
-        data = json.loads(data_str)
-        result = st.session_state.scheduler.create_phase_and_generate(
-            promo_name=data['name'],
-            student_count=int(data['students']),
-            phase_type=data['phase'],
-            sessions_per_student=int(data['sessions']),
-            duration_min=int(data['duration']),
-            start_date=data['startDate'],
-            available_positions=int(data['positions']),
-            daily_hours=data['dailyHours']
-        )
-        st.query_params.clear()
-        st.query_params.action = "result"
-        st.query_params.status = result["status"]
-        st.query_params.message = result["message"]
-    except Exception as e:
-        st.query_params.clear()
-        st.query_params.action = "result"
-        st.query_params.status = "failure"
-        st.query_params.message = str(e)
-
-# Affichage de l'interface
-st.markdown("""
-<style>
-    #MainMenu, header, footer, [data-testid="stToolbar"] { display: none !important; }
-    .main-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; margin: 0; padding: 0; border: none; overflow: hidden; }
-    .main-container iframe { width: 100%; height: 100%; border: none; margin: 0; padding: 0; overflow: hidden; display: block; }
-    body { margin: 0; padding: 0; overflow: hidden; }
-</style>
-<div class="main-container">
-    <iframe srcdoc='""" + html.replace("'", "\\'") + """'></iframe>
-</div>
-""", unsafe_allow_html=True)
+# On passe height=None pour qu'elle s'adapte à l'écran (Full Page)
+components.html(html_template, height=None, scrolling=True)
