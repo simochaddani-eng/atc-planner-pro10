@@ -23,7 +23,10 @@ html = html.replace('<script src="app.js"></script>', f'<script>{js}</script>')
 # --- CHARGEMENT DES DONNÉES ---
 shared = load_all_data()
 
-# CORRECTION ICI : On accède à shared["data"]["promotions"]
+# Si la base est KO, on envoie des données vides, le JS utilisera le localStorage
+if shared is None:
+    shared = {"data": {"promotions": [], "instructors": []}, "updated_at": None}
+
 promotions = json.dumps(shared["data"]["promotions"])
 instructors = json.dumps(shared["data"]["instructors"])
 last_update = json.dumps(shared["updated_at"]) 
@@ -39,19 +42,20 @@ if action == "generate" and data_str:
         st.query_params.clear()
         st.query_params.action = "result"
         st.query_params.status = "success" if success else "failure"
-        st.query_params.message = "Promotion enregistrée !" if success else "Erreur."
+        st.query_params.message = "Promotion enregistrée !" if success else "Erreur de sauvegarde (Supabase injoignable)."
     except Exception as e:
         st.query_params.clear()
         st.query_params.action = "result"
         st.query_params.status = "failure"
         st.query_params.message = str(e)
 
-# --- INJECTION DES DONNÉES ET DE LA SYNCHRO ---
+# --- INJECTION DES DONNÉES ---
 data_injection = f"""
 <script>
     window.__SHARED_PROMOTIONS = {promotions};
     window.__SHARED_INSTRUCTORS = {instructors};
     window.__LAST_UPDATE = {last_update};
+    console.log("📦 Données partagées reçues de Python :", {len(shared['data']['promotions'])});
 </script>
 """
 html = html.replace('</body>', data_injection + '</body>')
