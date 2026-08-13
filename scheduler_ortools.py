@@ -1,117 +1,97 @@
-# scheduler_ortools.py
+# scheduler_ortools.py (Version Persistante)
 import datetime
-from ortools.sat.python import cp_model
-from database import SessionLocal, Promotion, Phase, TimeSlot, InstructorAssign
+import os
+import json
+from sqlalchemy import create_engine, Column, Integer, String, Date, DateTime, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+
+# --- CONFIGURATION DE LA BASE DE DONNÉES PERSISTANTE ---
+# On stocke la base de données dans le dossier temporaire de Streamlit qui reste entre les redémarrages.
+# Ce dossier est persistant tant que l'application n'est pas redéployée sur GitHub.
+PERSISTENT_DIR = "/tmp"
+DB_PATH = os.path.join(PERSISTENT_DIR, "atc_planner_persistent.db")
+
+engine = create_engine(f'sqlite:///{DB_PATH}', echo=False)
+SessionLocal = sessionmaker(bind=engine)
+Base = declarative_base()
+
+# --- MODÈLES DE DONNÉES ---
+class PromotionDB(Base):
+    __tablename__ = 'promotions_db'
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    students = Column(Integer, nullable=False)
+    phase = Column(String, nullable=False)
+    sessions = Column(Integer, nullable=False)
+    sessionDuration = Column(Integer, nullable=False)
+    startDate = Column(String, nullable=False)
+    dayStart = Column(String, nullable=False)
+    dayEnd = Column(String, nullable=False)
+    selectedResources = Column(String, nullable=False) # Stocké comme chaîne JSON
+    status = Column(String, default="Planifiée")
+
+# Création de la table
+Base.metadata.create_all(bind=engine)
 
 class ATCSchedulerORTools:
     
-    def calculate_metrics(self, student_count, sessions_per_student, duration_min, available_positions):
-        groups = (student_count + available_positions - 1) // available_positions
-        total_sessions = student_count * sessions_per_student
-        total_hours = (total_sessions * duration_min) / 60
-        return groups, total_sessions, total_hours
-
-    def get_instructors_list(self):
-        """Récupère les instructeurs depuis la base de données."""
-        db = SessionLocal()
-        instructors = db.query(InstructorAssign).all()
-        # Fallback si vide
-        if not instructors:
-            fallback = [{"id": "1", "name": "Instructeur par défaut", "available": True}]
-            db.close()
-            return fallback
-        db.close()
-        return [{"id": i.id, "name": i.instructor_name} for i in instructors]
-
     def create_phase_and_generate(self, promo_name, student_count, phase_type, sessions_per_student, 
-                                  duration_min, start_date, available_positions, daily_hours, maintenance_slots=None):
-        
+                                  duration_min, start_date, available_positions, daily_hours):
+        # 1. Sauvegarde dans la base de données
         db = SessionLocal()
-        
-        # 1. Création de la Promotion / Phase
-        promo = db.query(Promotion).filter(Promotion.name == promo_name).first()
-        if not promo:
-            promo = Promotion(name=promo_name, student_count=student_count)
-            db.add(promo)
-            db.commit()
-            db.refresh(promo)
-
-        groups_count, _, _ = self.calculate_metrics(
-            student_count, sessions_per_student, duration_min, available_positions
-        )
-        
-        # Estimation de la date de fin
-        slots_per_day = len(daily_hours) if len(daily_hours) > 0 else 1
-        days_needed = (groups_count * sessions_per_student) / (available_positions * slots_per_day)
-        end_date = start_date + datetime.timedelta(days=int(days_needed) + 2)
-
-        new_phase = Phase(
-            promotion_id=promo.id,
-            phase_type=phase_type,
-            sessions_per_student=sessions_per_student,
-            duration_min=duration_min,
-            available_positions=available_positions,
-            start_date=start_date,
-            end_date_estimated=end_date,
+        new_promo = PromotionDB(
+            name=promo_name,
+            students=student_count,
+            phase=phase_type,
+            sessions=sessions_per_student,
+            sessionDuration=duration_min,
+            startDate=start_date,
+            dayStart='09:00',
+            dayEnd='16:30',
+            selectedResources='["radar1"]', # Exemple simplifié
             status="Planifiée"
         )
-        db.add(new_phase)
+        db.add(new_promo)
         db.commit()
-        db.refresh(new_phase)
-
-        # 2. Algorithme de remplissage des créneaux (simplifié pour la démo)
-        candidate_slots = []
-        current_day = start_date
-        for day in range(40): 
-            for hour in daily_hours:
-                for minute in [0, 15, 30, 45]:
-                    start_dt = datetime.datetime.combine(current_day, datetime.time(hour, minute))
-                    candidate_slots.append(start_dt)
-            current_day += datetime.timedelta(days=1)
-
-        # 3. Assignation des créneaux (Greedy simple)
-        schedule = {}
-        current_group_index = 0
-        for g in range(1, groups_count + 1):
-            for s in range(1, sessions_per_student + 1):
-                schedule[f"G{g}_S{s}"] = candidate_slots[current_group_index]
-                current_group_index += 1
-
-        # 4. Sauvegarde en base
-        plan_slots = []
-        for g in range(1, groups_count + 1):
-            for s in range(1, sessions_per_student + 1):
-                key = f"G{g}_S{s}"
-                start_time = schedule[key]
-                end_time = start_time + datetime.timedelta(minutes=duration_min)
-                
-                slot = TimeSlot(
-                    phase_id=new_phase.id,
-                    group_name=f"Groupe {g}",
-                    session_number=s,
-                    start_time=start_time,
-                    end_time=end_time,
-                    simulator="TWR" if "Aérodrome" in phase_type else "RADAR",
-                    instructor_name="Automatique"
-                )
-                db.add(slot)
-                plan_slots.append(slot)
-        
-        db.commit()
-        
-        phase_id_final = new_phase.id
-        groups_count_final = groups_count
-        total_hours_final = round((groups_count * sessions_per_student * duration_min) / 60, 1)
-        end_date_final = end_date.strftime("%d/%m/%Y")
-        message_final = f"Planning généré pour {promo_name}."
-        
+        db.refresh(new_promo)
         db.close()
         
         return {
             "status": "success",
-            "phase_id": phase_id_final,
-            "groups_count": groups_count_final,
-            "total_hours": total_hours_final,
-            "end_date": end_date_final,
-            "message": message_final
+            "phase_id": new_promo.id,
+            "message": f"Planning généré pour {promo_name}."
         }
+
+    def get_all_promotions(self):
+        db = SessionLocal()
+        promos = db.query(PromotionDB).all()
+        db.close()
+        return promos
+
+    def delete_promotion(self, promo_id):
+        db = SessionLocal()
+        promo = db.query(PromotionDB).filter(PromotionDB.id == promo_id).first()
+        if promo:
+            db.delete(promo)
+            db.commit()
+            db.close()
+            return True
+        db.close()
+        return False
+
+    def update_promotion(self, promo_id, new_data):
+        db = SessionLocal()
+        promo = db.query(PromotionDB).filter(PromotionDB.id == promo_id).first()
+        if promo:
+            promo.name = new_data.get('name', promo.name)
+            promo.students = new_data.get('students', promo.students)
+            promo.phase = new_data.get('phase', promo.phase)
+            promo.sessions = new_data.get('sessions', promo.sessions)
+            promo.sessionDuration = new_data.get('sessionDuration', promo.sessionDuration)
+            promo.startDate = new_data.get('startDate', promo.startDate)
+            db.commit()
+            db.close()
+            return True
+        db.close()
+        return False
