@@ -1,4 +1,4 @@
-// app.js - Version FINALE avec Résolution de Chevauchements
+// app.js - Version FINALE (Sauvegardes + Recalcul)
 
 const defaultResources = [
   { id: 'twr', name: 'TWR 1–4', positions: 4, icon: '♜', phases: ['aerodrome'], availability: 'Disponible', type: 'TWR' },
@@ -14,7 +14,7 @@ const phaseLabels = {
   'enroute-radar': 'En-route Radar'
 };
 
-const state = { phase: 'approach-radar', selectedResources: new Set(['radar1']), maintenance: null, generated: false, editingPromotionId: null, trackingPromotionId: null, planningMode: 'week', planningWeekStart: new Date() };
+const state = { phase: 'approach-radar', selectedResources: new Set(['radar1']), maintenance: null, generated: false, editingPromotionId: null, trackingPromotionId: null, planningMode: 'week', planningWeekStart: new Date(), studentPromotionId: null };
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
 
@@ -396,6 +396,7 @@ function resetPromotionForm() {
   updateEstimates();
 }
 
+// --- FONCTION DE SAUVEGARDE DE LA PROMOTION ---
 function saveCurrentPromotion() {
   const name = $('#cohortName').value.trim();
   if (!name) { showToast('Indiquez un nom de promotion avant de l’enregistrer.'); $('#cohortName').focus(); return null; }
@@ -423,6 +424,7 @@ function saveCurrentPromotion() {
   renderWeekGrid();
   renderGeneratedPlan();
   renderPhaseTracking();
+  showToast(`✅ Promotion "${name}" enregistrée avec succès !`);
   return record;
 }
 
@@ -589,11 +591,22 @@ function saveUserProfile() {
   settings = { ...settings, userName };
   persistManagementData(); renderUserProfile(); renderSettings(); closeModal(); showToast('Nom utilisateur enregistré.');
 }
+
+// --- FONCTION DE SAUVEGARDE DES PARAMÈTRES ---
 function saveSettings() {
-  settings = { academyName: $('#settingAcademyName').value.trim() || 'Aviation Academy', userName: $('#settingUserName').value.trim() || 'Utilisateur', defaultStart: $('#settingDefaultStart').value || '09:00', defaultEnd: $('#settingDefaultEnd').value || '16:30', defaultDuration: Math.max(1, Number($('#settingDefaultDuration').value) || 45), defaultBreak: Math.max(0, Number($('#settingDefaultBreak').value) || 0) };
-  document.querySelector('.brand-name').innerHTML = escapeHtml(settings.academyName).toUpperCase().split(/\s+/).join('<br />');
+  const academyName = $('#settingAcademyName').value.trim() || 'Aviation Academy';
+  const userName = $('#settingUserName').value.trim() || 'Utilisateur';
+  const defaultStart = $('#settingDefaultStart').value || '09:00';
+  const defaultEnd = $('#settingDefaultEnd').value || '16:30';
+  const defaultDuration = Math.max(1, Number($('#settingDefaultDuration').value) || 45);
+  const defaultBreak = Math.max(0, Number($('#settingDefaultBreak').value) || 0);
+  
+  settings = { academyName, userName, defaultStart, defaultEnd, defaultDuration, defaultBreak };
+  
+  document.querySelector('.brand-name').innerHTML = escapeHtml(academyName).toUpperCase().split(/\s+/).join('<br />');
   renderUserProfile();
-  persistManagementData(); showToast('Paramètres enregistrés. Ils seront utilisés pour les nouvelles promotions.');
+  persistManagementData(); 
+  showToast('✅ Paramètres enregistrés avec succès !');
 }
 
 function instructorModal(instructor = null) {
@@ -682,7 +695,7 @@ function setView(viewId) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// --- FONCTION DE RÉSOLUTION DES CHEVAUCHEMENTS (RÉINTÉGRÉE) ---
+// --- FONCTION DE RÉSOLUTION DES CHEVAUCHEMENTS ---
 function resolveConflicts() {
     let events = scheduledEvents();
     let conflicts = planningConflicts();
@@ -773,8 +786,12 @@ function setupEvents() {
   $('#phaseCards').addEventListener('click', event => { const card = event.target.closest('.phase-card'); if (!card) return; state.phase = card.dataset.phase; $$('.phase-card').forEach(item => item.classList.toggle('selected', item === card)); const allowed = new Set(resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible').map(r => r.id)); state.selectedResources = new Set([...state.selectedResources].filter(id => allowed.has(id))); if (!state.selectedResources.size && allowed.size) state.selectedResources.add([...allowed][0]); renderResourceSelector(); renderInstructorPills(); updateEstimates(); });
   ['studentCount','sessionCount','sessionDuration','breakDuration','dayStart','dayEnd','startDate'].forEach(id => $(`#${id}`).addEventListener('input', updateEstimates));
   $$('#dayToggles button').forEach(button => button.addEventListener('click', () => { button.classList.toggle('selected'); updateEstimates(); }));
+  
+  // --- CORRECTION BOUTONS ENREGISTRER ---
+  document.getElementById('savePromotion')?.addEventListener('click', saveCurrentPromotion);
+  document.getElementById('saveSettings')?.addEventListener('click', saveSettings);
+
   $('#generatePlan').addEventListener('click', () => { state.generated = true; const saved = saveCurrentPromotion(); if (!saved) return; const info = calculate(); state.planningWeekStart = dateFromKey(saved.startDate) || new Date(); renderWeekGrid(); renderDashboard(); renderGeneratedPlan(); setView('planning'); showToast(`${info.groups} groupes et ${info.totalRotations} rotations ont été proposés automatiquement.`); });
-  $('#savePromotion').addEventListener('click', () => { state.generated = false; const saved = saveCurrentPromotion(); if (saved) showToast(`Promotion ${saved.name} enregistrée.`); });
   $('#resetPlanner').addEventListener('click', () => { resetPromotionForm(); showToast('Formulaire de planification réinitialisé.'); });
   $('#newPromotion').addEventListener('click', () => { resetPromotionForm(); $('#cohortName').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#cohortName').focus(); showToast('Nouvelle promotion : complétez le formulaire puis enregistrez-la.'); });
   
@@ -808,7 +825,6 @@ function setupEvents() {
     const events = scheduledEvents(); const hours = events.reduce((sum, event) => sum + (event.endMinutes - event.startMinutes) / 60, 0);
     downloadCsv('atc-planner-rapport.csv', [['Indicateur', 'Valeur'], ['Promotions', promotions.length], ['Séances générées', events.length], ['Heures-position', hours.toFixed(2)], ['Étudiants', promotions.reduce((sum, promotion) => sum + (Number(promotion.students) || 0), 0)]]); showToast('Rapport téléchargé.');
   });
-  $('#saveSettings').addEventListener('click', saveSettings);
   $('#editUserProfile').addEventListener('click', userProfileModal);
   $('.menu-button').addEventListener('click', () => $('.sidebar').classList.toggle('open'));
   document.addEventListener('click', event => {
