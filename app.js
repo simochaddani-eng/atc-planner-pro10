@@ -1,4 +1,5 @@
-// app.js - Version Finale avec Sécurité par Mot de passe
+// app.js - Version avec Fallback Local (Priorité au cache)
+
 const defaultResources = [
   { id: 'twr', name: 'TWR 1–4', positions: 4, icon: '♜', phases: ['aerodrome'], availability: 'Disponible', type: 'TWR' },
   { id: 'radar1', name: 'RADAR 1', positions: 4, icon: '◉', phases: ['approach-procedure', 'approach-radar'], availability: 'Disponible', type: 'APP' },
@@ -13,7 +14,7 @@ const phaseLabels = {
   'enroute-radar': 'En-route Radar'
 };
 
-const state = { phase: 'approach-radar', selectedResources: new Set(['radar1']), maintenance: null, generated: false, editingPromotionId: null, trackingPromotionId: null, planningMode: 'week', planningWeekStart: new Date(), isUnlocked: false };
+const state = { phase: 'approach-radar', selectedResources: new Set(['radar1']), maintenance: null, generated: false, editingPromotionId: null, trackingPromotionId: null, planningMode: 'week', planningWeekStart: new Date() };
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
 
@@ -21,40 +22,10 @@ const defaultPromotions = [];
 const defaultInstructors = [];
 const storageKey = 'atc-planner-management-v3';
 const defaultSettings = { academyName: 'Aviation Academy', userName: 'Utilisateur', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45 };
+const remoteConfig = window.ATC_SUPABASE_CONFIG || {};
+const remoteState = { enabled: Boolean(remoteConfig.url && remoteConfig.anonKey), loaded: false, timer: null };
 
-// --- SYSTÈME DE VÉROUILLAGE / DÉVERROUILLAGE ---
-const MASTER_PASSWORD = window.__MASTER_PASSWORD || "PILOTE2026";
-
-function checkLocalUnlock() {
-    try {
-        const savedAuth = localStorage.getItem('planner_auth');
-        if (savedAuth === MASTER_PASSWORD) {
-            state.isUnlocked = true;
-        }
-    } catch(e) {}
-}
-
-function unlockApp(password) {
-    if (password === MASTER_PASSWORD) {
-        state.isUnlocked = true;
-        localStorage.setItem('planner_auth', MASTER_PASSWORD);
-        showToast('✅ Mode Planificateur activé !');
-        renderAllData();
-        return true;
-    } else {
-        showToast('❌ Mot de passe incorrect.');
-        return false;
-    }
-}
-
-function lockApp() {
-    state.isUnlocked = false;
-    localStorage.removeItem('planner_auth');
-    showToast('🔒 Mode Lecture Seule activé.');
-    renderAllData();
-}
-// ------------------------------------------------
-
+// --- 1. CHARGEMENT DES DONNÉES LOCALES (PRIORITÉ ABSOLUE) ---
 let promotions = [];
 let instructors = [];
 let resources = defaultResources;
@@ -62,7 +33,7 @@ let students = [];
 let settings = defaultSettings;
 
 try {
-    const saved = JSON.parse(localStorage.getItem(storageKey));
+    const saved = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('atc-planner-management-v2') || localStorage.getItem('atc-planner-management-v1'));
     if (saved) {
         promotions = saved.promotions || [];
         instructors = saved.instructors || [];
@@ -70,16 +41,54 @@ try {
         students = saved.students || [];
         settings = { ...defaultSettings, ...(saved.settings || {}) };
         state.maintenance = saved.maintenance || null;
+        console.log("💾 Données locales chargées avec succès depuis le cache.");
     }
-} catch (_) {}
+} catch (_) { /* Le stockage local peut être désactivé */ }
 
+// --- 2. ÉCRASEMENT PAR LES DONNÉES SUPABASE (SI DISPONIBLES) ---
 if (window.__SHARED_PROMOTIONS && window.__SHARED_PROMOTIONS.length > 0) {
     promotions = window.__SHARED_PROMOTIONS;
+    console.log("☁️ Données Supabase chargées (écrasent le cache).");
 }
+
 if (window.__SHARED_INSTRUCTORS && window.__SHARED_INSTRUCTORS.length > 0) {
     instructors = window.__SHARED_INSTRUCTORS;
 }
+// ------------------------------------------------------------------
 
+function snapshotManagementData() { return { promotions, instructors, resources, students, settings, maintenance: state.maintenance }; }
+function cacheManagementData() {
+  try { localStorage.setItem(storageKey, JSON.stringify(snapshotManagementData())); } catch (_) { /* Changes remain available during this visit. */ }
+}
+function persistManagementData() {
+  cacheManagementData();
+  if (remoteState.enabled && remoteState.loaded) queueRemoteSave();
+}
+function remoteHeaders(prefer = '') { return { apikey: remoteConfig.anonKey, Authorization: `Bearer ${remoteConfig.anonKey}`, 'Content-Type': 'application/json', ...(prefer ? { Prefer: prefer } : {}) }; }
+function remoteEndpoint() { return `${String(remoteConfig.url).replace(/\/$/, '')}/rest/v1/planner_state`; }
+function queueRemoteSave() {
+  clearTimeout(remoteState.timer);
+  remoteState.timer = setTimeout(async () => {
+    try {
+      const response = await fetch(`${remoteEndpoint()}?on_conflict=workspace`, { method: 'POST', headers: remoteHeaders('resolution=merge-duplicates,return=minimal'), body: JSON.stringify({ workspace: remoteConfig.workspace || 'academy', data: snapshotManagementData(), updated_at: new Date().toISOString() }) });
+      if (!response.ok) throw new Error(await response.text());
+    } catch (_) { showToast('Données enregistrées localement ; la synchronisation Supabase sera réessayée.'); }
+  }, 450);
+}
+async function loadRemoteManagementData() {
+  if (!remoteState.enabled) return;
+  try {
+    const workspace = encodeURIComponent(remoteConfig.workspace || 'academy');
+    const response = await fetch(`${remoteEndpoint()}?workspace=eq.${workspace}&select=data`, { headers: remoteHeaders() });
+    if (!response.ok) throw new Error(await response.text());
+    const rows = await response.json(); const shared = normaliseManagementData(rows?.[0]?.data);
+    remoteState.loaded = true;
+    if (shared) {
+      promotions = shared.promotions; instructors = shared.instructors; resources = shared.resources; students = shared.students; settings = shared.settings; state.maintenance = shared.maintenance;
+      cacheManagementData(); renderAllData(); showToast('Données partagées synchronisées.');
+    } else queueRemoteSave();
+  } catch (_) { showToast('Supabase indisponible : les données restent enregistrées sur cet appareil.'); }
+}
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[char]); }
 function initials(name) { return name.split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase(); }
 
@@ -119,6 +128,7 @@ function calculate() {
   const positionHours = totalSessions * minutes / 60;
   const groups = Math.ceil(students / positions);
   const slotsPerDay = Math.max(1, Math.floor(durationMinutes() / minutes));
+  // A rotation is a complete pass of the groups through the positions. This makes the estimate readable operationally.
   const totalRotations = groups * sessions;
   const days = Math.ceil(totalRotations / slotsPerDay);
   const selectedDays = $$('#dayToggles button.selected').map(button => Number(button.dataset.day));
@@ -533,20 +543,6 @@ function saveCurrentPromotion() {
   renderWeekGrid();
   renderGeneratedPlan();
   renderPhaseTracking();
-
-  // --- ENVOI AU BACKEND AVEC LE MOT DE PASSE ---
-  if (state.generated) {
-    const info = calculate();
-    const pythonData = {
-        name: record.name, students: record.students, phase: record.phase,
-        sessions: record.sessions, duration: record.sessionDuration,
-        startDate: record.startDate, positions: info.positions,
-        dailyHours: [9, 10, 11, 14, 15, 16],
-        password: MASTER_PASSWORD // Le mot de passe est envoyé au Backend
-    };
-    const params = new URLSearchParams({ action: 'generate', data: JSON.stringify(pythonData) });
-    window.location.search = params.toString();
-  }
   return record;
 }
 
@@ -831,42 +827,8 @@ function setupEvents() {
   $('#phaseCards').addEventListener('click', event => { const card = event.target.closest('.phase-card'); if (!card) return; state.phase = card.dataset.phase; $$('.phase-card').forEach(item => item.classList.toggle('selected', item === card)); const allowed = new Set(resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible').map(r => r.id)); state.selectedResources = new Set([...state.selectedResources].filter(id => allowed.has(id))); if (!state.selectedResources.size && allowed.size) state.selectedResources.add([...allowed][0]); renderResourceSelector(); renderInstructorPills(); updateEstimates(); });
   ['studentCount','sessionCount','sessionDuration','breakDuration','dayStart','dayEnd','startDate'].forEach(id => $(`#${id}`).addEventListener('input', updateEstimates));
   $$('#dayToggles button').forEach(button => button.addEventListener('click', () => { button.classList.toggle('selected'); updateEstimates(); }));
-  
-  // --- BOUTON PLANIFICATEUR (Déverrouillage) ---
-  document.getElementById('plannerUnlockBtn')?.addEventListener('click', function() {
-      const pwdInput = document.getElementById('plannerPasswordInput');
-      if (state.isUnlocked) {
-          lockApp();
-          this.textContent = '🔓 Déverrouiller';
-      } else {
-          if (unlockApp(pwdInput.value)) {
-              this.textContent = '🔒 Verrouiller';
-              pwdInput.value = '';
-          }
-      }
-  });
-  checkLocalUnlock(); // Vérifier le cache au démarrage
-
-  // --- BOUTON GÉNÉRER (Protégé) ---
-  $('#generatePlan').addEventListener('click', () => {
-      if (!state.isUnlocked) {
-          showToast('🔒 Action verrouillée. Entrez le mot de passe dans les Paramètres.');
-          return;
-      }
-      state.generated = true;
-      const saved = saveCurrentPromotion();
-      if (!saved) return;
-      const info = calculate();
-      state.planningWeekStart = dateFromKey(saved.startDate) || new Date();
-      renderWeekGrid(); renderDashboard(); renderGeneratedPlan(); setView('planning');
-      showToast(`${info.groups} groupes et ${info.totalRotations} rotations ont été proposés automatiquement.`);
-  });
-
-  $('#savePromotion').addEventListener('click', () => {
-      if (!state.isUnlocked) { showToast('🔒 Action verrouillée.'); return; }
-      state.generated = false; const saved = saveCurrentPromotion(); if (saved) showToast(`Promotion ${saved.name} enregistrée.`);
-  });
-  
+  $('#generatePlan').addEventListener('click', () => { state.generated = true; const saved = saveCurrentPromotion(); if (!saved) return; const info = calculate(); state.planningWeekStart = dateFromKey(saved.startDate) || new Date(); renderWeekGrid(); renderDashboard(); renderGeneratedPlan(); setView('planning'); showToast(`${info.groups} groupes et ${info.totalRotations} rotations ont été proposés automatiquement.`); });
+  $('#savePromotion').addEventListener('click', () => { state.generated = false; const saved = saveCurrentPromotion(); if (saved) showToast(`Promotion ${saved.name} enregistrée.`); });
   $('#resetPlanner').addEventListener('click', () => { resetPromotionForm(); showToast('Formulaire de planification réinitialisé.'); });
   $('#newPromotion').addEventListener('click', () => { resetPromotionForm(); $('#cohortName').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#cohortName').focus(); showToast('Nouvelle promotion : complétez le formulaire puis enregistrez-la.'); });
   $('#recalculate').addEventListener('click', () => { renderWeekGrid(); renderDashboard(); const conflicts = planningConflicts(); showToast(conflicts.length ? `${conflicts.length} conflit${conflicts.length > 1 ? 's' : ''} à examiner après recalcul.` : 'Planning recalculé : aucun conflit détecté.'); });
