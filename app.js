@@ -1,5 +1,3 @@
-// app.js - Version avec Fallback Local (Priorité au cache)
-
 const defaultResources = [
   { id: 'twr', name: 'TWR 1–4', positions: 4, icon: '♜', phases: ['aerodrome'], availability: 'Disponible', type: 'TWR' },
   { id: 'radar1', name: 'RADAR 1', positions: 4, icon: '◉', phases: ['approach-procedure', 'approach-radar'], availability: 'Disponible', type: 'APP' },
@@ -24,38 +22,27 @@ const storageKey = 'atc-planner-management-v3';
 const defaultSettings = { academyName: 'Aviation Academy', userName: 'Utilisateur', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45 };
 const remoteConfig = window.ATC_SUPABASE_CONFIG || {};
 const remoteState = { enabled: Boolean(remoteConfig.url && remoteConfig.anonKey), loaded: false, timer: null };
-
-// --- 1. CHARGEMENT DES DONNÉES LOCALES (PRIORITÉ ABSOLUE) ---
-let promotions = [];
-let instructors = [];
-let resources = defaultResources;
-let students = [];
-let settings = defaultSettings;
-
-try {
+function normaliseManagementData(saved) {
+  if (!saved || !Array.isArray(saved.promotions) || !Array.isArray(saved.instructors)) return null;
+  const demonstrationIds = new Set(['p-a', 'p-b', 'p-c', 'p-d', 'i-sophie', 'i-thomas', 'i-julien', 'i-camille', 'i-marc']);
+  const cleanedPromotions = saved.promotions.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, startDate: item.startDate || dateKey(new Date()), sessionDuration: Math.max(1, Number(item.sessionDuration) || 45), dayStart: item.dayStart || '09:00', dayEnd: item.dayEnd || '16:30', breakDuration: Math.max(0, Number(item.breakDuration) || 0) }));
+  const cleanedInstructors = saved.instructors.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, speciality: item.speciality === 'RADAR' ? 'Approche Radar' : item.speciality === 'TWR & RADAR' ? 'TWR + Approche Radar' : item.speciality }));
+  return { promotions: cleanedPromotions, instructors: cleanedInstructors, resources: Array.isArray(saved.resources) && saved.resources.length ? saved.resources : defaultResources, students: Array.isArray(saved.students) ? saved.students : [], settings: { ...defaultSettings, ...(saved.settings || {}) }, maintenance: saved.maintenance || null };
+}
+function loadManagementData() {
+  try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('atc-planner-management-v2') || localStorage.getItem('atc-planner-management-v1'));
-    if (saved) {
-        promotions = saved.promotions || [];
-        instructors = saved.instructors || [];
-        resources = Array.isArray(saved.resources) && saved.resources.length ? saved.resources : defaultResources;
-        students = saved.students || [];
-        settings = { ...defaultSettings, ...(saved.settings || {}) };
-        state.maintenance = saved.maintenance || null;
-        console.log("💾 Données locales chargées avec succès depuis le cache.");
-    }
-} catch (_) { /* Le stockage local peut être désactivé */ }
-
-// --- 2. ÉCRASEMENT PAR LES DONNÉES SUPABASE (SI DISPONIBLES) ---
-if (window.__SHARED_PROMOTIONS && window.__SHARED_PROMOTIONS.length > 0) {
-    promotions = window.__SHARED_PROMOTIONS;
-    console.log("☁️ Données Supabase chargées (écrasent le cache).");
+    const normalised = normaliseManagementData(saved); if (normalised) return normalised;
+  } catch (_) { /* Local storage can be disabled when opening a local file. */ }
+  return { promotions: defaultPromotions, instructors: defaultInstructors, resources: defaultResources, students: [], settings: defaultSettings, maintenance: null };
 }
-
-if (window.__SHARED_INSTRUCTORS && window.__SHARED_INSTRUCTORS.length > 0) {
-    instructors = window.__SHARED_INSTRUCTORS;
-}
-// ------------------------------------------------------------------
-
+const management = loadManagementData();
+let promotions = management.promotions;
+let instructors = management.instructors;
+let resources = management.resources;
+let students = management.students;
+let settings = management.settings;
+state.maintenance = management.maintenance;
 function snapshotManagementData() { return { promotions, instructors, resources, students, settings, maintenance: state.maintenance }; }
 function cacheManagementData() {
   try { localStorage.setItem(storageKey, JSON.stringify(snapshotManagementData())); } catch (_) { /* Changes remain available during this visit. */ }
@@ -266,7 +253,7 @@ function scheduledEvents() {
     for (let rotation = 0; rotation < sessions * groups; rotation++) {
       const date = nextWorkingDate(start, Math.floor(rotation / slots.length));
       const startMinutes = slots[rotation % slots.length]; const group = (rotation % groups) + 1; const session = Math.floor(rotation / groups) + 1;
-      events.push({ promotionId: promotion.id, resourceId: resource.id, date: dateKey(date), title: `${promotion.name} · G${group}`, time: `${timeLabel(startMinutes)} – ${timeLabel(startMinutes + duration)}`, startMinutes, endMinutes: startMinutes + duration, group, session, colour: colours[promotionIndex % colours.length] });
+      events.push({ id: `${promotion.id}-${session}-${group}`, promotionId: promotion.id, resourceId: resource.id, date: dateKey(date), title: `${promotion.name} · G${group}`, time: `${timeLabel(startMinutes)} – ${timeLabel(startMinutes + duration)}`, startMinutes, endMinutes: startMinutes + duration, group, session, colour: colours[promotionIndex % colours.length] });
     }
   });
   return events;
@@ -283,6 +270,10 @@ function recalculateSchedule() {
     if (previousPlans.get(promotion.id)) promotion.plannedEvents = previousPlans.get(promotion.id); else delete promotion.plannedEvents;
   });
   const occupied = new Map(); let generated = 0;
+  // Locked slots are validated operational decisions: they are never moved.
+  planned.flatMap(promotion => (promotion.plannedEvents || []).filter(event => event.locked).map(event => ({ ...event, promotionId: promotion.id }))).forEach(event => {
+    const key = `${event.resourceId}-${event.date}`; occupied.set(key, [...(occupied.get(key) || []), event]);
+  });
   for (const promotion of planned) {
     const resourcesForPhase = compatibleResourcesForPromotion(promotion);
     const duration = Math.max(1, Number(promotion.sessionDuration) || 45);
@@ -293,26 +284,29 @@ function recalculateSchedule() {
     const dayEnd = minutesFromTime(promotion.dayEnd, '16:30');
     const slots = dailySlots(promotion).filter(slot => slot + duration <= dayEnd);
     if (!resourcesForPhase.length || !slots.length) { restorePreviousPlans(); return { ok: false, generated, message: `Impossible de planifier ${promotion.name} : vérifiez les ressources ou les horaires.` }; }
-    const events = []; let rotation = 0; let dayOffset = 0;
-    while (rotation < rotations && dayOffset < 730) {
+    const locked = (promotion.plannedEvents || []).filter(event => event.locked);
+    const lockedKeys = new Set(locked.map(event => `${event.session}-${event.group}`));
+    const pending = Array.from({ length: rotations }, (_, index) => ({ group: (index % groups) + 1, session: Math.floor(index / groups) + 1 })).filter(item => !lockedKeys.has(`${item.session}-${item.group}`));
+    const events = [...locked]; let rotation = 0; let dayOffset = 0;
+    while (rotation < pending.length && dayOffset < 730) {
       const date = nextWorkingDate(dateFromKey(promotion.startDate), dayOffset);
       const dateValue = dateKey(date);
       for (const startMinutes of slots) {
-        if (rotation >= rotations) break;
-        const group = (rotation % groups) + 1;
+        if (rotation >= pending.length) break;
+        const { group, session } = pending[rotation];
         const groupSize = group === groups ? studentsCount - ((groups - 1) * positions) : positions;
         const resource = resourcesForPhase
           .filter(item => item.positions >= groupSize && !(state.maintenance && item.id === state.maintenance.resourceId && dateValue === state.maintenance.date))
           .sort((first, second) => (occupied.get(`${first.id}-${dateValue}`)?.length || 0) - (occupied.get(`${second.id}-${dateValue}`)?.length || 0))
           .find(item => !(occupied.get(`${item.id}-${dateValue}`) || []).some(event => startMinutes < event.endMinutes && startMinutes + duration > event.startMinutes));
         if (!resource) continue;
-        const session = Math.floor(rotation / groups) + 1;
-        const event = { resourceId: resource.id, date: dateValue, title: `${promotion.name} · G${group}`, time: `${timeLabel(startMinutes)} – ${timeLabel(startMinutes + duration)}`, startMinutes, endMinutes: startMinutes + duration, group, session };
+        const instructorId = promotion.groupInstructorIds?.[group] || promotion.phaseInstructorId || '';
+        const event = { id: `${promotion.id}-${session}-${group}`, resourceId: resource.id, date: dateValue, title: `${promotion.name} · G${group}`, time: `${timeLabel(startMinutes)} – ${timeLabel(startMinutes + duration)}`, startMinutes, endMinutes: startMinutes + duration, group, session, instructorId };
         const key = `${resource.id}-${dateValue}`; occupied.set(key, [...(occupied.get(key) || []), event]); events.push(event); rotation++; generated++;
       }
       dayOffset++;
     }
-    if (rotation < rotations) { restorePreviousPlans(); return { ok: false, generated, message: `Impossible de trouver assez de créneaux pour ${promotion.name}.` }; }
+    if (rotation < pending.length) { restorePreviousPlans(); return { ok: false, generated, message: `Impossible de trouver assez de créneaux pour ${promotion.name}.` }; }
     promotion.plannedEvents = events;
   }
   persistManagementData();
@@ -442,7 +436,10 @@ function renderGeneratedPlan() {
   }
   const promotion = planned[0]; const events = scheduledEvents().filter(event => event.promotionId === promotion.id).slice(0, 8);
   title.textContent = `Planning généré — ${promotion.name}`; subtitle.textContent = `${events.length} séances sont affichées à partir du ${formatDate(dateFromKey(promotion.startDate))}.`; status.textContent = 'Prêt à valider';
-  slots.innerHTML = events.map((event, index) => `<article class='generated-slot'><strong>Séance ${index + 1}</strong><p>${event.time} · ${resourceForPromotion(promotion).name}</p><span class='tag'>${escapeHtml(event.title)}</span></article>`).join('');
+  slots.innerHTML = events.map((event, index) => {
+    const instructor = instructorForEvent(promotion, event);
+    return `<article class='generated-slot ${event.locked ? 'locked-slot' : ''}'><strong>Séance ${index + 1} ${event.locked ? '· Validée' : ''}</strong><p>${event.time} · ${resources.find(resource => resource.id === event.resourceId)?.name || resourceForPromotion(promotion).name}</p><span class='tag'>${escapeHtml(event.title)}</span><label class='slot-instructor'>Instructeur<select data-slot-instructor="${promotion.id}" data-event-id="${event.id || `${promotion.id}-${event.session}-${event.group}`}">${instructorOptions(promotion.phase, instructor?.id || '')}</select></label><button class='outline-button small' data-toggle-lock="${promotion.id}" data-event-id="${event.id || `${promotion.id}-${event.session}-${event.group}`}">${event.locked ? 'Déverrouiller' : 'Valider le créneau'}</button></article>`;
+  }).join('');
 }
 
 function slotsForGeneratedPlan() {
@@ -584,6 +581,36 @@ function compatibleInstructorsForPhase(phase) {
     return instructor.speciality === 'En-route Radar';
   });
 }
+function instructorForEvent(promotion, event) {
+  const instructorId = event?.instructorId || promotion.groupInstructorIds?.[event?.group] || promotion.phaseInstructorId;
+  return instructors.find(instructor => instructor.id === instructorId) || null;
+}
+function instructorOptions(phase, selected = '') {
+  const options = compatibleInstructorsForPhase(phase);
+  return `<option value="">Non affecté</option>${options.map(instructor => `<option value="${instructor.id}" ${instructor.id === selected ? 'selected' : ''}>${escapeHtml(instructor.name)}</option>`).join('')}`;
+}
+function setPhaseInstructor(promotionId, instructorId) {
+  const promotion = promotions.find(item => item.id === promotionId); if (!promotion) return;
+  promotion.phaseInstructorId = instructorId || '';
+  (promotion.plannedEvents || []).forEach(event => { if (!event.manualInstructor) event.instructorId = instructorId || ''; });
+  persistManagementData(); renderPhaseTracking(); renderGeneratedPlan(); renderSessions(); showToast('Instructeur de phase mis à jour.');
+}
+function setGroupInstructor(promotionId, group, instructorId) {
+  const promotion = promotions.find(item => item.id === promotionId); if (!promotion) return;
+  promotion.groupInstructorIds = { ...(promotion.groupInstructorIds || {}), [group]: instructorId || '' };
+  (promotion.plannedEvents || []).filter(event => Number(event.group) === Number(group) && !event.manualInstructor).forEach(event => { event.instructorId = instructorId || ''; });
+  persistManagementData(); renderPhaseTracking(); renderGeneratedPlan(); renderSessions(); showToast(`Instructeur du groupe ${group} mis à jour.`);
+}
+function setSlotInstructor(promotionId, eventId, instructorId) {
+  const promotion = promotions.find(item => item.id === promotionId); const event = promotion?.plannedEvents?.find(item => item.id === eventId);
+  if (!event) return;
+  event.instructorId = instructorId || ''; event.manualInstructor = true; persistManagementData(); renderGeneratedPlan(); renderSessions(); renderPhaseTracking(); showToast('Instructeur du créneau mis à jour.');
+}
+function toggleSlotLock(promotionId, eventId) {
+  const promotion = promotions.find(item => item.id === promotionId); const event = promotion?.plannedEvents?.find(item => item.id === eventId);
+  if (!event) return;
+  event.locked = !event.locked; persistManagementData(); renderGeneratedPlan(); renderWeekGrid(); showToast(event.locked ? 'Créneau validé et verrouillé.' : 'Créneau déverrouillé.');
+}
 function renderPhaseTracking() {
   const promotion = promotions.find(item => item.id === state.trackingPromotionId) || promotions[0];
   const journey = $('#phaseJourney');
@@ -617,14 +644,14 @@ function renderPhaseTracking() {
   $('#phaseDuration').textContent = `${duration} min`;
   $('#phasePositions').textContent = resource.positions;
   $('#phaseCapacityInfo').textContent = `${resource.name} · ${resource.positions} positions · ${dailySlots(promotion).length} créneaux par jour · pause de ${promotion.breakDuration ?? 45} min.`;
-  $('#phaseInstructorAssignments').innerHTML = instructorsForPhase.length ? instructorsForPhase.map(instructor => `<div class="assignment-row"><span class="avatar">${initials(instructor.name)}</span><strong>${escapeHtml(instructor.name)}</strong><small>${escapeHtml(instructor.speciality)} · ${instructor.groups || 0} groupe(s)</small></div>`).join('') : '<div class="empty-state">Aucun instructeur compatible avec cette phase.</div>';
+  $('#phaseInstructorAssignments').innerHTML = instructorsForPhase.length ? `<label class="assignment-select">Instructeur de phase<select data-phase-instructor="${promotion.id}">${instructorOptions(promotion.phase, promotion.phaseInstructorId)}</select></label>${instructorsForPhase.map(instructor => `<div class="assignment-row"><span class="avatar">${initials(instructor.name)}</span><strong>${escapeHtml(instructor.name)}</strong><small>${escapeHtml(instructor.speciality)} · ${instructor.groups || 0} groupe(s)</small></div>`).join('')}` : '<div class="empty-state">Aucun instructeur compatible avec cette phase.</div>';
   $('#phaseGroupSubtitle').textContent = `${groups} groupes, selon ${resource.positions} positions disponibles sur ${resource.name}.`;
   const rows = Array.from({ length: groups }, (_, index) => {
     const first = index * resource.positions + 1; const last = Math.min(promotion.students, (index + 1) * resource.positions);
     const count = last - first + 1;
-    return `<div class="group-table-row"><strong>Groupe ${index + 1}</strong><span>Étudiants ${first} – ${last}</span><span>${count}</span><span>${promotion.sessions}</span><span>${groupsHours.toFixed(groupsHours % 1 ? 1 : 0)} h</span></div>`;
+    return `<div class="group-table-row"><strong>Groupe ${index + 1}</strong><span>Étudiants ${first} – ${last}</span><span>${count}</span><span>${promotion.sessions}</span><span>${groupsHours.toFixed(groupsHours % 1 ? 1 : 0)} h</span><select data-group-instructor="${promotion.id}" data-group-number="${index + 1}">${instructorOptions(promotion.phase, promotion.groupInstructorIds?.[index + 1] || promotion.phaseInstructorId)}</select></div>`;
   }).join('');
-  $('#phaseGroups').innerHTML = `<div class="group-table-head"><span>Groupe</span><span>Étudiants</span><span>Effectif</span><span>Séances</span><span>Durée</span></div>${rows}<div class="group-table-row"><strong>Total</strong><span></span><span>${promotion.students}</span><span>${promotion.sessions * groups}</span><span>${totalHours.toFixed(totalHours % 1 ? 1 : 0)} h</span></div>`;
+  $('#phaseGroups').innerHTML = `<div class="group-table-head"><span>Groupe</span><span>Étudiants</span><span>Effectif</span><span>Séances</span><span>Durée</span><span>Instructeur</span></div>${rows}<div class="group-table-row"><strong>Total</strong><span></span><span>${promotion.students}</span><span>${promotion.sessions * groups}</span><span>${totalHours.toFixed(totalHours % 1 ? 1 : 0)} h</span><span></span></div>`;
   $('#phaseTotalDuration').textContent = `${totalHours.toFixed(totalHours % 1 ? 1 : 0)} h`;
   $('#phaseSummaryStudents').textContent = promotion.students;
   $('#phaseSummarySessions').textContent = promotion.sessions;
@@ -899,4 +926,4 @@ function setupEvents() {
 }
 
 if (!$('#startDate').value) $('#startDate').value = dateKey(new Date());
-updateCurrentClock(); setInterval(updateCurrentClock, 10000); renderAllData(); setupEvents();
+updateCurrentClock(); setInterval(updateCurrentClock, 10000); renderAllData(); setupEvents(); loadRemoteManagementData();
