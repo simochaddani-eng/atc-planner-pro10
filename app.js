@@ -874,38 +874,14 @@ function toggleSidebar() {
   const narrow = window.matchMedia('(max-width: 820px)').matches;
   if (narrow) {
     sidebar.classList.toggle('open');
-    document.body.classList.toggle('menu-open');
     menuButton.setAttribute('aria-expanded', String(sidebar.classList.contains('open')));
-    
-    // Gérer l'overlay
-    let overlay = document.querySelector('.sidebar-overlay');
-    if (sidebar.classList.contains('open')) {
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.className = 'sidebar-overlay active';
-        overlay.addEventListener('click', function() {
-          toggleSidebar();
-        });
-        document.body.appendChild(overlay);
-      }
-    } else {
-      if (overlay) {
-        overlay.remove();
-      }
-    }
     return;
   }
   document.body.classList.toggle('menu-collapsed');
   menuButton.setAttribute('aria-expanded', String(!document.body.classList.contains('menu-collapsed')));
 }
 function collapseSidebar() {
-  const sidebar = $('.sidebar');
-  const overlay = document.querySelector('.sidebar-overlay');
-  sidebar.classList.remove('open');
-  document.body.classList.remove('menu-open');
-  if (overlay) overlay.remove();
-  document.body.classList.add('menu-collapsed');
-  $('.menu-button').setAttribute('aria-expanded', 'false');
+  $('.sidebar').classList.remove('open'); document.body.classList.add('menu-collapsed'); $('.menu-button').setAttribute('aria-expanded', 'false');
 }
 
 function setupEvents() {
@@ -950,74 +926,8 @@ function setupEvents() {
   });
   $('#saveSettings').addEventListener('click', saveSettings);
   $('#editUserProfile').addEventListener('click', userProfileModal);
-  
-  // === CORRECTIONS MOBILE ===
-  // Utiliser les nouveaux gestionnaires pour le menu mobile
-  const menuButton = document.getElementById('menuButton');
-  const sidebar = document.getElementById('mainSidebar');
-  const overlay = document.getElementById('sidebarOverlay');
-  const collapseBtn = document.getElementById('collapseSidebar');
-  
-  // Supprimer les anciens écouteurs et en ajouter de nouveaux
-  if (menuButton) {
-    // Supprimer l'ancien écouteur
-    const oldMenuButton = menuButton.cloneNode(true);
-    menuButton.parentNode.replaceChild(oldMenuButton, menuButton);
-    
-    oldMenuButton.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleSidebar();
-    });
-    
-    oldMenuButton.addEventListener('touchstart', function(e) {
-      e.preventDefault();
-      toggleSidebar();
-    });
-  }
-  
-  if (collapseBtn) {
-    const oldCollapseBtn = collapseBtn.cloneNode(true);
-    collapseBtn.parentNode.replaceChild(oldCollapseBtn, collapseBtn);
-    
-    oldCollapseBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      collapseSidebar();
-    });
-  }
-  
-  if (overlay) {
-    overlay.addEventListener('click', function() {
-      if (document.querySelector('.sidebar.open')) {
-        toggleSidebar();
-      }
-    });
-  }
-  
-  // Fermer le menu quand on clique sur un item de navigation (mobile)
-  document.querySelectorAll('.nav-item').forEach(function(item) {
-    item.addEventListener('click', function() {
-      if (window.innerWidth <= 820 && document.querySelector('.sidebar.open')) {
-        toggleSidebar();
-      }
-    });
-  });
-  
-  // Gérer le redimensionnement
-  let resizeTimer;
-  window.addEventListener('resize', function() {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function() {
-      if (window.innerWidth > 820) {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar) sidebar.classList.remove('open');
-        document.body.classList.remove('menu-open');
-        if (overlay) overlay.remove();
-      }
-    }, 250);
-  });
-
+  $('.menu-button').addEventListener('click', toggleSidebar);
+  $('.collapse').addEventListener('click', collapseSidebar);
   document.addEventListener('click', event => {
     const promotionButton = event.target.closest('[data-promo-action]');
     const phaseButton = event.target.closest('[data-set-phase]');
