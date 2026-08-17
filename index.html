@@ -14,7 +14,7 @@
       <aside class="sidebar" id="mainSidebar">
         <a class="brand" href="#dashboard" aria-label="Aviation Academy">
           <span class="brand-mark">✦</span>
-          <span class="brand-name">AVIATION<br />ACADEMY</span>
+          <span class="brand-name" id="brandName">AVIATION<br />ACADEMY</span>
         </a>
         <nav class="main-nav" aria-label="Navigation principale">
           <button class="nav-item active" data-view="dashboard"><span>⌂</span>Tableau de bord</button>
@@ -39,50 +39,443 @@
       <main class="content">
         <header class="topbar">
           <button class="menu-button" id="menuButton" aria-label="Ouvrir ou réduire le menu" aria-expanded="false">☰</button>
-          <div class="page-heading"><button class="back-button" aria-label="Retour">←</button><div><h1 id="pageTitle">Bonjour, Utilisateur</h1><p id="pageSubtitle">Vue d'ensemble de la planification ATC</p></div></div>
-          <div class="user-tools"><button aria-label="Notifications" class="icon-button notification">♧<b>3</b></button><button aria-label="Aide" class="icon-button">?</button><button class="user-profile" id="editUserProfile" aria-label="Modifier le profil"><span class="avatar" id="userAvatar">UT</span><span class="user-name"><strong id="userDisplayName">Utilisateur</strong><small>Profil local</small></span><span class="chevron">⌄</span></button></div>
+          <div class="page-heading">
+            <button class="back-button" aria-label="Retour">←</button>
+            <div>
+              <h1 id="pageTitle">Bonjour, Utilisateur</h1>
+              <p id="pageSubtitle">Vue d'ensemble de la planification ATC</p>
+            </div>
+          </div>
+          <div class="user-tools">
+            <button aria-label="Notifications" class="icon-button notification">♧<b>3</b></button>
+            <button aria-label="Aide" class="icon-button">?</button>
+            <button class="user-profile" id="editUserProfile" aria-label="Modifier le profil">
+              <span class="avatar" id="userAvatar">UT</span>
+              <span class="user-name"><strong id="userDisplayName">Utilisateur</strong><small>Profil local</small></span>
+              <span class="chevron">⌄</span>
+            </button>
+          </div>
         </header>
 
+        <!-- SECTION DASHBOARD -->
         <section id="dashboard" class="view active-view">
-          <!-- Dashboard content -->
-          <div class="view-toolbar"><div><p class="eyebrow" id="dashboardDateLabel">AUJOURD'HUI</p><h2>Pilotage de la formation</h2></div><button class="primary-button" data-go="promotions"><span>＋</span> Nouvelle planification</button></div>
+          <div class="view-toolbar">
+            <div>
+              <p class="eyebrow" id="dashboardDateLabel">AUJOURD'HUI</p>
+              <h2>Pilotage de la formation</h2>
+            </div>
+            <button class="primary-button" data-go="promotions"><span>＋</span> Nouvelle planification</button>
+          </div>
           <div class="kpi-grid">
-            <article class="kpi-card"><div class="kpi-icon blue">♧</div><div><p>Promotions actives</p><strong id="dashboardPromotionTotal">0</strong><small id="dashboardStudentTotal">Aucun étudiant enregistré</small></div><a data-go="promotions">Voir les promotions →</a></article>
-            <article class="kpi-card"><div class="kpi-icon green">▣</div><div><p>Positions disponibles</p><strong id="dashboardPositionTotal">0 <em>/ 0</em></strong><small id="dashboardPositionInfo">Aucune ressource configurée</small></div><a data-go="resources">Voir les simulateurs →</a></article>
-            <article class="kpi-card"><div class="kpi-icon purple">♙</div><div><p>Instructeurs enregistrés</p><strong id="dashboardInstructorTotal">0</strong><small id="dashboardInstructorInfo">Aucun instructeur enregistré</small></div><a data-go="instructors">Voir les instructeurs →</a></article>
-            <article class="kpi-card"><div class="kpi-icon amber">↻</div><div><p>Phases planifiées</p><strong id="dashboardPhaseTotal">0</strong><small id="dashboardPhaseInfo">Aucune séance planifiée</small></div><a data-go="planning">Voir le planning →</a></article>
+            <article class="kpi-card">
+              <div class="kpi-icon blue">♧</div>
+              <div><p>Promotions actives</p><strong id="dashboardPromotionTotal">0</strong><small id="dashboardStudentTotal">Aucun étudiant enregistré</small></div>
+              <a data-go="promotions">Voir les promotions →</a>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-icon green">▣</div>
+              <div><p>Positions disponibles</p><strong id="dashboardPositionTotal">0 <em>/ 0</em></strong><small id="dashboardPositionInfo">Aucune ressource configurée</small></div>
+              <a data-go="resources">Voir les simulateurs →</a>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-icon purple">♙</div>
+              <div><p>Instructeurs enregistrés</p><strong id="dashboardInstructorTotal">0</strong><small id="dashboardInstructorInfo">Aucun instructeur enregistré</small></div>
+              <a data-go="instructors">Voir les instructeurs →</a>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-icon amber">↻</div>
+              <div><p>Phases planifiées</p><strong id="dashboardPhaseTotal">0</strong><small id="dashboardPhaseInfo">Aucune séance planifiée</small></div>
+              <a data-go="planning">Voir le planning →</a>
+            </article>
           </div>
           <div class="dashboard-grid">
             <section class="panel capacity-panel">
-              <div class="panel-heading"><div><h3 id="dashboardCapacityTitle">Capacité — aucune promotion</h3><p id="dashboardCapacitySubtitle">Ajoutez une promotion pour calculer sa charge.</p></div><button class="link-button" data-go="promotions">Gérer la phase →</button></div>
-              <div class="capacity-stats">
-                <div><span class="mini-icon blue">▦</span><p>Total séances</p><strong>240</strong><small>30 étudiants × 8</small></div>
-                <div><span class="mini-icon green">◷</span><p>Heures-position</p><strong>180h</strong><small>240 × 45 min</small></div>
-                <div><span class="mini-icon purple">↻</span><p>Rotations</p><strong>8</strong><small>4 positions en parallèle</small></div>
-                <div><span class="mini-icon amber">◷</span><p>Durée estimée</p><strong>8 jours</strong><small>Selon disponibilité</small></div>
+              <div class="panel-heading">
+                <div><h3 id="dashboardCapacityTitle">Capacité — aucune promotion</h3><p id="dashboardCapacitySubtitle">Ajoutez une promotion pour calculer sa charge.</p></div>
+                <button class="link-button" data-go="promotions">Gérer la phase →</button>
               </div>
-              <div class="info-strip"><span>i</span><p id="dashboardCapacityInfo">Les calculs apparaîtront après la création d'une promotion.</p><button data-go="promotions">Voir le détail du calcul →</button></div>
+              <div class="capacity-stats">
+                <div><span class="mini-icon blue">▦</span><p>Total séances</p><strong id="capTotal">240</strong><small>30 étudiants × 8</small></div>
+                <div><span class="mini-icon green">◷</span><p>Heures-position</p><strong id="capHours">180h</strong><small>240 × 45 min</small></div>
+                <div><span class="mini-icon purple">↻</span><p>Rotations</p><strong id="capRotations">8</strong><small>4 positions en parallèle</small></div>
+                <div><span class="mini-icon amber">◷</span><p>Durée estimée</p><strong id="capDays">8 jours</strong><small>Selon disponibilité</small></div>
+              </div>
+              <div class="info-strip">
+                <span>i</span>
+                <p id="dashboardCapacityInfo">Les calculs apparaîtront après la création d'une promotion.</p>
+                <button data-go="promotions">Voir le détail du calcul →</button>
+              </div>
             </section>
             <section class="panel preview-panel">
-              <div class="panel-heading"><div><h3>Aperçu planning</h3><p>Charges par promotion sur 2 semaines</p></div><button class="link-button" data-go="planning">Planning complet →</button></div>
+              <div class="panel-heading">
+                <div><h3>Aperçu planning</h3><p>Charges par promotion sur 2 semaines</p></div>
+                <button class="link-button" data-go="planning">Planning complet →</button>
+              </div>
               <div class="mini-calendar" id="dashboardPreview"></div>
             </section>
           </div>
           <section class="panel occupancy-panel">
-            <div class="panel-heading"><div><h3>Occupation des ressources</h3><p id="dashboardOccupationSubtitle">Séances planifiées</p></div><div class="panel-actions"><select aria-label="Période"><option>Aujourd'hui</option><option>Cette semaine</option></select><button class="outline-button" data-go="planning">Voir le planning</button></div></div>
-            <div class="occupancy-header"><span>Ressource</span><div><b>08:00</b><b>09:00</b><b>10:00</b><b>11:00</b><b>12:00</b><b>13:00</b><b>14:00</b><b>15:00</b><b>16:00</b><b>17:00</b></div></div>
+            <div class="panel-heading">
+              <div><h3>Occupation des ressources</h3><p id="dashboardOccupationSubtitle">Séances planifiées</p></div>
+              <div class="panel-actions">
+                <select aria-label="Période"><option>Aujourd'hui</option><option>Cette semaine</option></select>
+                <button class="outline-button" data-go="planning">Voir le planning</button>
+              </div>
+            </div>
+            <div class="occupancy-header">
+              <span>Ressource</span>
+              <div><b>08:00</b><b>09:00</b><b>10:00</b><b>11:00</b><b>12:00</b><b>13:00</b><b>14:00</b><b>15:00</b><b>16:00</b><b>17:00</b></div>
+            </div>
             <div class="occupancy-rows" id="dashboardOccupancy"></div>
           </section>
         </section>
 
-        <!-- Les autres sections (promotions, phase-tracking, planning, resources, sessions, instructors, students, reports, settings) -->
-        <!-- restent identiques à votre version actuelle -->
+        <!-- SECTION PROMOTIONS -->
+        <section id="promotions" class="view">
+          <div class="view-toolbar planning-title">
+            <div>
+              <p class="eyebrow">PLANIFICATION INTELLIGENTE</p>
+              <h2>Promotions & planification</h2>
+              <p class="helper">Ajoutez une promotion, modifiez ses paramètres puis générez son planning automatiquement.</p>
+            </div>
+            <div class="toolbar-actions">
+              <button class="outline-button" id="resetPlanner">Réinitialiser le formulaire</button>
+              <button class="primary-button" id="newPromotion">＋ Ajouter une promotion</button>
+            </div>
+          </div>
+          <section class="panel management-panel">
+            <div class="panel-heading">
+              <div><h3>Promotions enregistrées</h3><p>Gérez les promotions avant de lancer ou de recalculer la planification.</p></div>
+              <span class="management-count" id="promotionCount">0 promotions</span>
+            </div>
+            <div class="management-list promotion-list" id="promotionList"></div>
+          </section>
+          <div class="planning-layout">
+            <section class="planner-card">
+              <ol class="stepper">
+                <li class="step active"><b>1</b><span>Promotion<small>Informations générales</small></span></li>
+                <li class="step"><b>2</b><span>Paramètres<small>Séances et horaires</small></span></li>
+                <li class="step"><b>3</b><span>Ressources<small>Instructeurs et positions</small></span></li>
+                <li class="step"><b>4</b><span>Prévisualisation<small>Résumé et validation</small></span></li>
+              </ol>
+              <div class="planner-section">
+                <h3>Informations de la promotion</h3>
+                <div class="form-grid four">
+                  <label>Nom de la promotion<input id="cohortName" placeholder="Ex. ICNA 07" /></label>
+                  <label>Effectif<input id="studentCount" type="number" min="1" value="30" /></label>
+                  <label>Date de début<input id="startDate" type="date" /></label>
+                  <label>Description <span class="optional">(facultatif)</span><input placeholder="Notes sur la promotion" /></label>
+                </div>
+              </div>
+              <div class="planner-section">
+                <h3>Phase de formation</h3>
+                <div class="phase-cards" id="phaseCards">
+                  <button class="phase-card" data-phase="aerodrome"><span class="phase-symbol">A</span><b>Aérodrome</b><small>Phase 1 · TWR</small></button>
+                  <button class="phase-card" data-phase="approach-procedure"><span class="phase-symbol">↘</span><b>Approche Procédure</b><small>Phase 2</small></button>
+                  <button class="phase-card" data-phase="enroute-procedure"><span class="phase-symbol">↗</span><b>En-route Procédure</b><small>Phase 3</small></button>
+                  <button class="phase-card selected" data-phase="approach-radar"><span class="phase-symbol">◉</span><b>Approche Radar</b><small>Phase 4 · RADAR</small></button>
+                  <button class="phase-card" data-phase="enroute-radar"><span class="phase-symbol">⌁</span><b>En-route Radar</b><small>Phase 5 · RADAR</small></button>
+                </div>
+              </div>
+              <div class="planner-section">
+                <h3>Programme & fenêtres de planification</h3>
+                <div class="form-grid three">
+                  <label>Nombre de séances<input id="sessionCount" type="number" min="1" step="1" value="8" /></label>
+                  <label>Durée par étudiant (minutes)<input id="sessionDuration" type="number" min="1" step="1" value="45" /></label>
+                  <label>Pause quotidienne (minutes)<input id="breakDuration" type="number" min="0" step="1" value="45" /></label>
+                </div>
+                <div class="form-grid three second-row">
+                  <label>Début de journée<input id="dayStart" type="time" value="09:00" /></label>
+                  <label>Fin de journée<input id="dayEnd" type="time" value="16:30" /></label>
+                  <label>Jours travaillés<div class="day-toggles" id="dayToggles">
+                    <button class="selected" data-day="1">Lun</button>
+                    <button class="selected" data-day="2">Mar</button>
+                    <button class="selected" data-day="3">Mer</button>
+                    <button class="selected" data-day="4">Jeu</button>
+                    <button class="selected" data-day="5">Ven</button>
+                    <button data-day="6">Sam</button>
+                    <button data-day="0">Dim</button>
+                  </div></label>
+                </div>
+              </div>
+              <div class="planner-section resources-choice">
+                <div class="section-row">
+                  <div><h3>Ressources & encadrement</h3><p>Les positions sont polyvalentes : choisissez les ressources compatibles avec la phase.</p></div>
+                  <span id="resourceCompatibility">Sélectionnez une ressource compatible</span>
+                </div>
+                <div class="resource-selector" id="resourceSelector"></div>
+                <div class="instructor-pills" id="instructorPills"></div>
+              </div>
+              <div class="planner-footer">
+                <button class="text-button" id="savePromotion">Enregistrer la promotion</button>
+                <div>
+                  <button class="outline-button" data-go="dashboard">Annuler</button>
+                  <button class="primary-button" id="generatePlan">Générer le planning <span>→</span></button>
+                </div>
+              </div>
+            </section>
+            <aside class="estimate-card">
+              <div class="estimate-heading"><span class="estimate-icon">▥</span><h3>Résultat estimatif</h3></div>
+              <div class="soft-info"><b>i</b><p>Estimation actualisée selon les contraintes saisies.</p></div>
+              <div class="estimate-list">
+                <div><span class="estimate-small-icon">▦</span><p>Total séances<small>Étudiants × programme</small></p><strong id="estimateSessions">240</strong></div>
+                <div><span class="estimate-small-icon green-text">◷</span><p>Heures-position<small>Charge totale à réaliser</small></p><strong id="estimateHours">180 h</strong></div>
+                <div><span class="estimate-small-icon purple-text">↻</span><p>Groupes / rotations<small>À répartir par séance</small></p><strong id="estimateGroups">8 groupes</strong></div>
+                <div><span class="estimate-small-icon amber-text">▣</span><p>Jours de planification<small>Selon créneaux et capacité</small></p><strong id="estimateDays">8 jours</strong></div>
+                <div><span class="estimate-small-icon">▦</span><p>Fin prévisionnelle<small>Hors jours d'indisponibilité</small></p><strong id="estimateEnd">11 juin</strong></div>
+              </div>
+              <div class="estimate-footer"><b>✓</b><p>Le planning sera généré avec contrôle des conflits, des indisponibilités et de la charge instructeur.</p></div>
+            </aside>
+          </div>
+        </section>
 
+        <!-- SECTION PHASE TRACKING -->
+        <section id="phase-tracking" class="view phase-tracking-view">
+          <div class="view-toolbar">
+            <div>
+              <p class="eyebrow">SUIVI DE FORMATION</p>
+              <h2 id="phaseTrackingTitle">Suivi de phase</h2>
+              <p class="helper" id="phaseTrackingSubtitle">Sélectionnez une promotion dans la liste pour consulter son avancement.</p>
+            </div>
+            <button class="outline-button" data-go="promotions">← Retour aux promotions</button>
+          </div>
+          <section class="phase-progress-panel panel">
+            <div class="phase-journey" id="phaseJourney"></div>
+          </section>
+          <div class="phase-detail-grid">
+            <section class="panel phase-metrics">
+              <div class="panel-heading">
+                <div><h3>Phase sélectionnée</h3><p id="phaseMetricLabel">Aucune promotion sélectionnée</p></div>
+                <span class="status-pill success" id="phaseMetricStatus">En attente</span>
+              </div>
+              <div class="phase-stat-grid">
+                <div><span>♧</span><p>Étudiants</p><strong id="phaseStudents">—</strong></div>
+                <div><span>▦</span><p>Séances</p><strong id="phaseSessions">—</strong></div>
+                <div><span>◷</span><p>Durée</p><strong id="phaseDuration">—</strong></div>
+                <div><span>▣</span><p>Positions</p><strong id="phasePositions">—</strong></div>
+              </div>
+              <div class="phase-info-row" id="phaseCapacityInfo">Créez une promotion pour voir le calcul de capacité.</div>
+              <section class="instructor-assignments">
+                <div class="panel-heading">
+                  <div><h3>Affectation des instructeurs</h3><p>Instructeurs compatibles avec cette phase.</p></div>
+                  <button class="link-button" data-go="instructors">Gérer →</button>
+                </div>
+                <div id="phaseInstructorAssignments" class="assignment-list"></div>
+              </section>
+            </section>
+            <section class="panel phase-groups">
+              <div class="panel-heading">
+                <div><h3>Groupes générés automatiquement</h3><p id="phaseGroupSubtitle">Les groupes seront calculés après le choix d'une promotion.</p></div>
+                <button class="outline-button small" id="regenerateGroups">↻ Régénérer</button>
+              </div>
+              <div class="group-table" id="phaseGroups"></div>
+            </section>
+          </div>
+          <section class="phase-bottom-summary panel">
+            <div><span class="summary-icon">▦</span><b>Résumé de la phase</b><small>Calcul automatique</small></div>
+            <div><small>Durée totale</small><strong id="phaseTotalDuration">—</strong></div>
+            <div><small>Étudiants</small><strong id="phaseSummaryStudents">—</strong></div>
+            <div><small>Séances</small><strong id="phaseSummarySessions">—</strong></div>
+            <div><small>Durée / étudiant</small><strong id="phaseSummaryDuration">—</strong></div>
+            <div class="summary-highlight"><small>Durée estimée</small><strong id="phaseEstimatedDays">—</strong></div>
+          </section>
+        </section>
+
+        <!-- SECTION PLANNING -->
+        <section id="planning" class="view">
+          <div class="view-toolbar">
+            <div>
+              <p class="eyebrow">OCCUPATION HEBDOMADAIRE</p>
+              <h2>Planning des simulateurs</h2>
+              <p class="helper" id="planningPeriodLabel">Semaine sélectionnée</p>
+            </div>
+            <div class="toolbar-actions">
+              <button class="outline-button" id="addMaintenance">＋ Indisponibilité</button>
+              <button class="primary-button" id="recalculate">↻ Recalculer le planning</button>
+            </div>
+          </div>
+          <section class="planning-notices">
+            <article class="notice warning">
+              <h4>⚠ Alertes <span id="alertCount">0</span></h4>
+              <p id="alertText">Aucun conflit détecté dans la période affichée.</p>
+              <button id="showConflict">Voir le détail</button>
+            </article>
+            <article class="notice constraints">
+              <h4>✦ Contraintes prises en compte</h4>
+              <ul>
+                <li>Maximum 8 h par ressource / jour</li>
+                <li>Pause quotidienne et horaires flexibles</li>
+                <li>Instructeurs non chevauchants</li>
+              </ul>
+            </article>
+            <article class="notice optimize">
+              <span>✦</span>
+              <div>
+                <h4>Optimiser le planning</h4>
+                <p>Le recalcul conserve les créneaux validés et résout les conflits restants.</p>
+                <button class="primary-button small" id="optimize">Recalculer</button>
+              </div>
+            </article>
+          </section>
+          <section class="panel weekly-panel">
+            <div class="weekly-controls">
+              <div>
+                <button class="outline-button small" id="previousPeriod" aria-label="Période précédente">‹</button>
+                <button class="outline-button small" id="currentPeriod">Aujourd'hui</button>
+                <button class="outline-button small" id="nextPeriod" aria-label="Période suivante">›</button>
+                <strong id="planningPeriodLabel2">Semaine sélectionnée</strong>
+              </div>
+              <div>
+                <button class="segmented active" data-planning-mode="week">Semaine</button>
+                <button class="segmented" data-planning-mode="month">Mois</button>
+                <button class="outline-button small" id="exportPlanning">⇩ CSV</button>
+                <button class="outline-button small" id="exportPlanningPdf">⇩ PDF</button>
+              </div>
+            </div>
+            <div class="week-grid" id="weekGrid"></div>
+          </section>
+          <section class="panel generated-panel" id="generatedPlanPanel">
+            <div class="panel-heading">
+              <div><h3 id="generatedPlanTitle">Aucun planning généré</h3><p id="generatedPlanSubtitle">Créez une promotion et lancez la génération pour afficher les rotations.</p></div>
+              <span class="status-pill success" id="generatedPlanStatus">En attente</span>
+            </div>
+            <div id="generatedSlots" class="generated-slots"></div>
+          </section>
+        </section>
+
+        <!-- SECTION RESOURCES -->
+        <section id="resources" class="view">
+          <div class="view-toolbar">
+            <div>
+              <p class="eyebrow">RESSOURCES POLYVALENTES</p>
+              <h2>Simulateurs & positions</h2>
+              <p class="helper">Disponibilité, compatibilité par phase et maintenance.</p>
+            </div>
+            <button class="primary-button" id="openResourceCreator">＋ Ajouter une ressource</button>
+          </div>
+          <div class="resource-overview">
+            <article class="resource-summary"><span class="kpi-icon blue">♜</span><div><small>Positions TWR</small><strong id="resourceTwrPositions">0</strong><p>Aérodrome</p></div></article>
+            <article class="resource-summary"><span class="kpi-icon purple">◉</span><div><small>Positions RADAR</small><strong id="resourceRadarPositions">0</strong><p>Approche & En-route</p></div></article>
+            <article class="resource-summary"><span class="kpi-icon green">✓</span><div><small>Libres aujourd'hui</small><strong id="resourceAvailablePositions">0</strong><p id="resourceAvailabilityInfo">Aucune ressource configurée</p></div></article>
+          </div>
+          <div class="resource-grid" id="resourceCards"></div>
+        </section>
+
+        <!-- SECTION SESSIONS -->
+        <section id="sessions" class="view operational-view">
+          <div class="view-toolbar">
+            <div>
+              <p class="eyebrow">SUIVI DES SÉANCES</p>
+              <h2>Séances de simulation</h2>
+              <p class="helper">Toutes les rotations générées depuis vos promotions planifiées.</p>
+            </div>
+            <div class="toolbar-actions">
+              <select id="sessionFilter">
+                <option value="all">Toutes les séances</option>
+                <option value="today">Aujourd'hui</option>
+                <option value="week">Cette semaine</option>
+              </select>
+              <button class="outline-button" id="exportSessions">⇩ Exporter</button>
+            </div>
+          </div>
+          <section class="panel sessions-panel">
+            <div class="panel-heading">
+              <div><h3 id="sessionsTitle">Aucune séance</h3><p id="sessionsSubtitle">Planifiez une promotion pour commencer.</p></div>
+              <button class="primary-button small" data-go="planning">Voir le planning</button>
+            </div>
+            <div class="session-table" id="sessionsTable"></div>
+          </section>
+        </section>
+
+        <!-- SECTION INSTRUCTORS -->
+        <section id="instructors" class="view instructor-view">
+          <div class="view-toolbar">
+            <div>
+              <p class="eyebrow">ÉQUIPE PÉDAGOGIQUE</p>
+              <h2>Instructeurs</h2>
+              <p class="helper">Ajoutez ou retirez des instructeurs. Les disponibilités sont prises en compte dans le planning.</p>
+            </div>
+            <button class="primary-button" id="addInstructor">＋ Ajouter un instructeur</button>
+          </div>
+          <section class="panel instructor-management">
+            <div class="panel-heading">
+              <div><h3>Liste des instructeurs</h3><p>Les suppressions mettent immédiatement à jour les options de planification.</p></div>
+              <span class="management-count" id="instructorCount">0 instructeurs</span>
+            </div>
+            <div class="instructor-list" id="instructorList"></div>
+          </section>
+        </section>
+
+        <!-- SECTION STUDENTS -->
+        <section id="students" class="view operational-view">
+          <div class="view-toolbar">
+            <div>
+              <p class="eyebrow">PROMOTIONS</p>
+              <h2>Étudiants</h2>
+              <p class="helper">Ajoutez les élèves à leur promotion. L'effectif et les groupes sont mis à jour automatiquement.</p>
+            </div>
+            <button class="primary-button" id="addStudent">＋ Ajouter un étudiant</button>
+          </div>
+          <section class="panel students-panel">
+            <div class="student-controls">
+              <label>Promotion<select id="studentPromotionSelect"></select></label>
+              <span id="studentCountLabel">0 étudiant</span>
+            </div>
+            <div class="student-list" id="studentList"></div>
+          </section>
+        </section>
+
+        <!-- SECTION REPORTS -->
+        <section id="reports" class="view operational-view">
+          <div class="view-toolbar">
+            <div>
+              <p class="eyebrow">ANALYSE</p>
+              <h2>Rapports de charge</h2>
+              <p class="helper">Synthèse calculée à partir des promotions, séances et ressources créées.</p>
+            </div>
+            <button class="outline-button" id="exportReport">⇩ Exporter le rapport</button>
+          </div>
+          <div class="report-grid" id="reportGrid"></div>
+          <section class="panel report-panel">
+            <div class="panel-heading">
+              <div><h3>Charge par ressource</h3><p>Heures planifiées sur la période enregistrée.</p></div>
+            </div>
+            <div class="resource-report-list" id="resourceReportList"></div>
+          </section>
+        </section>
+
+        <!-- SECTION SETTINGS -->
+        <section id="settings" class="view operational-view">
+          <div class="view-toolbar">
+            <div>
+              <p class="eyebrow">CONFIGURATION</p>
+              <h2>Paramètres</h2>
+              <p class="helper">Ces valeurs seront proposées automatiquement lors de la création d'une nouvelle promotion.</p>
+            </div>
+          </div>
+          <section class="panel settings-panel">
+            <div class="form-grid three">
+              <label>Votre nom<input id="settingUserName" autocomplete="name" placeholder="Utilisateur" /></label>
+              <label>Nom de l'académie<input id="settingAcademyName" placeholder="Aviation Academy" /></label>
+              <label>Horaire de début par défaut<input id="settingDefaultStart" type="time" /></label>
+              <label>Horaire de fin par défaut<input id="settingDefaultEnd" type="time" /></label>
+              <label>Durée d'une séance (minutes)<input id="settingDefaultDuration" type="number" min="1" step="1" /></label>
+              <label>Pause quotidienne (minutes)<input id="settingDefaultBreak" type="number" min="0" step="1" /></label>
+            </div>
+            <div class="settings-footer">
+              <p>Les paramètres n'écrasent pas les promotions existantes.</p>
+              <button class="primary-button" id="saveSettings">Enregistrer les paramètres</button>
+            </div>
+          </section>
+        </section>
       </main>
     </div>
 
     <div class="modal-backdrop" id="modalBackdrop" hidden>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><button class="modal-close" id="modalClose">×</button><div id="modalContent"></div></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <button class="modal-close" id="modalClose">×</button>
+        <div id="modalContent"></div>
+      </div>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="app.js"></script>
