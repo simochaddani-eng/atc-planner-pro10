@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>ATC Planner — Aviation Academy</title>
+    <title>ATC Planner — AIAC</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
@@ -12,9 +12,29 @@
   <body>
     <div class="app-shell">
       <aside class="sidebar" id="mainSidebar">
-        <a class="brand" href="#dashboard" aria-label="Aviation Academy">
-          <span class="brand-mark">✦</span>
-          <span class="brand-name" id="brandName">AVIATION<br />ACADEMY</span>
+        <a class="brand" href="#dashboard" aria-label="AIAC">
+          <div class="brand-logo-container">
+            <svg class="brand-svg" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="60" cy="60" r="55" stroke="#102a59" stroke-width="3" fill="white"/>
+              <g transform="translate(60, 60) rotate(-45)">
+                <path d="M-40 0 L40 0 L45 -8 L35 -3 L-30 -3 L-40 0" fill="#102a59"/>
+                <path d="M-40 0 L40 0 L45 8 L35 3 L-30 3 L-40 0" fill="#102a59"/>
+                <rect x="-30" y="-12" width="8" height="24" rx="2" fill="#102a59"/>
+                <rect x="25" y="-6" width="20" height="12" rx="2" fill="#102a59"/>
+                <circle cx="-32" cy="0" r="4" fill="#e74c3c"/>
+              </g>
+              <path d="M20 60 A40 40 0 0 1 60 20" stroke="#1f6df2" stroke-width="3" stroke-linecap="round"/>
+              <path d="M20 60 A40 40 0 0 1 100 60" stroke="#1f6df2" stroke-width="3" stroke-linecap="round"/>
+              <path d="M20 60 A40 40 0 0 1 60 100" stroke="#1f6df2" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="60" cy="60" r="6" fill="#e74c3c"/>
+              <circle cx="60" cy="60" r="3" fill="white"/>
+              <text x="60" y="112" text-anchor="middle" font-family="Manrope, sans-serif" font-size="14" font-weight="800" fill="#102a59" letter-spacing="2">AIAC</text>
+            </svg>
+          </div>
+          <span class="brand-name">
+            AVIATION<br />
+            <span class="brand-sub">ACADEMY</span>
+          </span>
         </a>
         <nav class="main-nav" aria-label="Navigation principale">
           <button class="nav-item active" data-view="dashboard"><span>⌂</span>Tableau de bord</button>
