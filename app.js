@@ -336,21 +336,13 @@ function bindPlanningActions() {
   });
 }
 function planningConflicts() {
-  const events = scheduledEvents(); const byResourceAndDate = new Map(); const byInstructorAndDate = new Map(); const conflicts = [];
+  const events = scheduledEvents(); const byResourceAndDate = new Map(); const conflicts = [];
   events.forEach(event => {
     const key = `${event.resourceId}-${event.date}`;
     const existing = byResourceAndDate.get(key) || [];
     const overlap = existing.find(other => event.startMinutes < other.endMinutes && event.endMinutes > other.startMinutes);
     if (overlap) conflicts.push({ type: 'overlap', event, existing: overlap });
     existing.push(event); byResourceAndDate.set(key, existing);
-    const promotion = promotions.find(item => item.id === event.promotionId);
-    const instructorId = event.instructorId || promotion?.groupInstructorIds?.[event.group] || promotion?.phaseInstructorId;
-    if (instructorId) {
-      const instructorKey = `${instructorId}-${event.date}`; const instructorEvents = byInstructorAndDate.get(instructorKey) || [];
-      const instructorOverlap = instructorEvents.find(other => event.startMinutes < other.endMinutes && event.endMinutes > other.startMinutes);
-      if (instructorOverlap) conflicts.push({ type: 'instructor', event, existing: instructorOverlap });
-      instructorEvents.push(event); byInstructorAndDate.set(instructorKey, instructorEvents);
-    }
   });
   if (state.maintenance) events.filter(event => event.resourceId === state.maintenance.resourceId && event.date === state.maintenance.date).forEach(event => conflicts.push({ type: 'maintenance', event }));
   return conflicts;
@@ -360,7 +352,6 @@ function updatePlanningAlerts() {
   count.textContent = conflicts.length;
   if (!conflicts.length) text.textContent = 'Aucun conflit détecté dans la période affichée.';
   else if (conflicts[0].type === 'maintenance') text.textContent = `${conflicts.length} séance${conflicts.length > 1 ? 's' : ''} touchée${conflicts.length > 1 ? 's' : ''} par une indisponibilité.`;
-  else if (conflicts[0].type === 'instructor') text.textContent = `${conflicts.length} chevauchement${conflicts.length > 1 ? 's' : ''} d’instructeur à résoudre.`;
   else text.textContent = `${conflicts.length} chevauchement${conflicts.length > 1 ? 's' : ''} de ressource à résoudre.`;
 }
 function displayedDates() {
@@ -673,33 +664,6 @@ function downloadCsv(filename, rows) {
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url);
 }
-function pdfSafeText(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, ' ').replace(/[\\()]/g, '\\$&');
-}
-function exportPlanningPdf() {
-  const events = scheduledEvents().sort((a, b) => a.date.localeCompare(b.date) || a.startMinutes - b.startMinutes);
-  const rows = events.length ? events.map(event => {
-    const resource = resources.find(item => item.id === event.resourceId)?.name || 'Ressource';
-    const promotion = promotions.find(item => item.id === event.promotionId);
-    const instructor = promotion ? instructorForEvent(promotion, event)?.name || 'Non affecte' : 'Non affecte';
-    return `${event.date} | ${event.time} | ${event.title} | ${resource} | ${instructor}${event.locked ? ' | Valide' : ''}`;
-  }) : ['Aucune seance planifiee.'];
-  const pages = [];
-  for (let index = 0; index < rows.length; index += 38) pages.push(rows.slice(index, index + 38));
-  const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
-  const pageIds = [];
-  pages.forEach((lines, index) => {
-    const pageId = 4 + index * 2; const contentId = pageId + 1; pageIds.push(pageId);
-    const content = ['BT', '/F1 16 Tf', '40 800 Td', '(ATC Planner - Planning) Tj', '/F1 9 Tf', '0 -22 Td', `(Export du ${pdfSafeText(new Date().toLocaleDateString('fr-FR'))}) Tj`, '0 -20 Td', ...lines.flatMap(line => [`(${pdfSafeText(line)}) Tj`, '0 -16 Td']), 'ET'].join('\n');
-    objects[pageId - 1] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R >>`;
-    objects[contentId - 1] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
-  });
-  objects[1] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
-  let pdf = '%PDF-1.4\n'; const offsets = [0];
-  objects.forEach((object, index) => { offsets[index + 1] = pdf.length; pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
-  const xref = pdf.length; pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' })); const link = document.createElement('a'); link.href = url; link.download = 'atc-planner-planning.pdf'; link.click(); URL.revokeObjectURL(url); showToast('PDF du planning téléchargé.');
-}
 function renderSessions() {
   const select = $('#sessionFilter'); const filter = select?.value || 'all'; const today = dateKey(new Date()); const weekEnd = dateKey(addDays(startOfWeek(new Date()), 6));
   let events = scheduledEvents().sort((first, second) => first.date.localeCompare(second.date) || first.startMinutes - second.startMinutes);
@@ -911,7 +875,6 @@ function setupEvents() {
     const csv = rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(';')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const link = document.createElement('a'); link.href = url; link.download = 'atc-planner-planning.csv'; link.click(); URL.revokeObjectURL(url); showToast('Export du planning téléchargé.');
   });
-  $('#exportPlanningPdf').addEventListener('click', exportPlanningPdf);
   $('#regenerateGroups').addEventListener('click', () => { renderPhaseTracking(); showToast('Groupes recalculés selon les positions disponibles.'); });
   $('#sessionFilter').addEventListener('change', renderSessions);
   $('#exportSessions').addEventListener('click', () => {
@@ -940,7 +903,6 @@ function setupEvents() {
     const saveResource = event.target.closest('[data-save-resource]');
     const confirmedResource = event.target.closest('[data-confirm-delete-resource]');
     const removeStudent = event.target.closest('[data-delete-student]');
-    const toggleLockButton = event.target.closest('[data-toggle-lock]');
     if (promotionButton) { if (promotionButton.dataset.promoAction === 'edit') editPromotion(promotionButton.dataset.promotionId); else if (promotionButton.dataset.promoAction === 'track') { state.trackingPromotionId = promotionButton.dataset.promotionId; setView('phase-tracking'); } else deletePromotion(promotionButton.dataset.promotionId); }
     if (phaseButton) { const promotion = promotions.find(item => item.id === phaseButton.dataset.trackingPromotion); if (promotion) { promotion.phase = phaseButton.dataset.setPhase; promotion.status = 'En cours'; persistManagementData(); renderPromotions(); renderPhaseTracking(); renderDashboard(); renderWeekGrid(); showToast(`Phase mise à jour : ${phaseLabels[promotion.phase]}.`); } }
     if (instructorButton) deleteInstructor(instructorButton.dataset.deleteInstructor);
@@ -952,7 +914,6 @@ function setupEvents() {
     if (confirmedInstructor) { instructors = instructors.filter(item => item.id !== confirmedInstructor.dataset.confirmDeleteInstructor); persistManagementData(); renderInstructors(); renderInstructorPills(); renderDashboard(); closeModal(); showToast('Instructeur retiré.'); }
     if (confirmedResource) { resources = resources.filter(item => item.id !== confirmedResource.dataset.confirmDeleteResource); state.selectedResources.delete(confirmedResource.dataset.confirmDeleteResource); persistManagementData(); renderResourceCards(); renderResourceSummary(); renderResourceSelector(); renderDashboard(); renderWeekGrid(); closeModal(); showToast('Ressource supprimée.'); }
     if (removeStudent) deleteStudent(removeStudent.dataset.deleteStudent);
-    if (toggleLockButton) toggleSlotLock(toggleLockButton.dataset.toggleLock, toggleLockButton.dataset.eventId);
     if (event.target.id === 'modalCancel') closeModal();
     if (event.target.id === 'modalRecalculate') { closeModal(); $('#recalculate').click(); }
     if (event.target.id === 'modalDone') closeModal();
@@ -961,14 +922,6 @@ function setupEvents() {
     if (event.target.id === 'saveStudent') saveStudentFromModal();
     if (event.target.id === 'saveUserProfile') saveUserProfile();
     if (event.target.id === 'saveMaintenance') { state.maintenance = { resourceId: $('#maintenanceResource').value, date: $('#maintenanceDate').value, reason: $('#maintenanceReason').value.trim() || 'Maintenance' }; persistManagementData(); renderWeekGrid(); renderDashboard(); closeModal(); showToast('Indisponibilité ajoutée au planning.'); }
-  });
-  document.addEventListener('change', event => {
-    const phaseAssignment = event.target.closest('[data-phase-instructor]');
-    const groupAssignment = event.target.closest('[data-group-instructor]');
-    const slotAssignment = event.target.closest('[data-slot-instructor]');
-    if (phaseAssignment) setPhaseInstructor(phaseAssignment.dataset.phaseInstructor, phaseAssignment.value);
-    if (groupAssignment) setGroupInstructor(groupAssignment.dataset.groupInstructor, groupAssignment.dataset.groupNumber, groupAssignment.value);
-    if (slotAssignment) setSlotInstructor(slotAssignment.dataset.slotInstructor, slotAssignment.dataset.eventId, slotAssignment.value);
   });
 }
 
