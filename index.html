@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ATC Planner — AIAC</title>
+    <title>ATC Planner — Aviation Academy</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
@@ -12,10 +12,9 @@
   <body>
     <div class="app-shell">
       <aside class="sidebar">
-        <a class="brand" href="#dashboard" aria-label="AIAC">
-          <!-- LOGO AIAC INTÉGRÉ DIRECTEMENT ICI (Base64) -->
-          <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0iIzFkNGI5MSIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXdlaWdodD0iYm9sZCIgZm9udC1zaXplPSI0MCIgZmlsbD0iI2ZmZmZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+QUlBQzwvdGV4dD48L3N2Zz4=" alt="AIAC Logo" style="width: 44px; height: 44px; border-radius: 50%; border: 2px solid #1d4b91;" />
-          <span class="brand-name">AIAC</span>
+        <a class="brand" href="#dashboard" aria-label="Aviation Academy">
+          <span class="brand-mark">✦</span>
+          <span class="brand-name">AVIATION<br />ACADEMY</span>
         </a>
         <nav class="main-nav" aria-label="Navigation principale">
           <button class="nav-item active" data-view="dashboard"><span>⌂</span>Tableau de bord</button>
@@ -37,7 +36,7 @@
 
       <main class="content">
         <header class="topbar">
-          <button class="menu-button" aria-label="Menu">☰</button>
+          <button class="menu-button" aria-label="Ouvrir ou réduire le menu" aria-expanded="false">☰</button>
           <div class="page-heading"><button class="back-button" aria-label="Retour">←</button><div><h1 id="pageTitle">Bonjour, Utilisateur</h1><p id="pageSubtitle">Vue d'ensemble de la planification ATC</p></div></div>
           <div class="user-tools"><button aria-label="Notifications" class="icon-button notification">♧<b>3</b></button><button aria-label="Aide" class="icon-button">?</button><button class="user-profile" id="editUserProfile" aria-label="Modifier le profil"><span class="avatar" id="userAvatar">UT</span><span class="user-name"><strong id="userDisplayName">Utilisateur</strong><small>Profil local</small></span><span class="chevron">⌄</span></button></div>
         </header>
@@ -101,15 +100,9 @@
         </section>
 
         <section id="planning" class="view">
-          <div class="view-toolbar"><div><p class="eyebrow">OCCUPATION HEBDOMADAIRE</p><h2>Planning des simulateurs</h2><p class="helper">Semaine 23 · 2 – 6 juin 2025</p></div><div class="toolbar-actions">
-            <!-- MODIFICATION ICI : Les 2 boutons d'export -->
-            <button class="outline-button" id="addMaintenance">＋ Indisponibilité</button>
-            <button class="primary-button" id="recalculate">↻ Recalculer le planning</button>
-            <button class="outline-button small" id="exportExcel">⇩ Excel</button>
-            <button class="outline-button small" id="exportPDF">⇩ PDF</button>
-          </div></div>
+          <div class="view-toolbar"><div><p class="eyebrow">OCCUPATION HEBDOMADAIRE</p><h2>Planning des simulateurs</h2><p class="helper">Semaine 23 · 2 – 6 juin 2025</p></div><div class="toolbar-actions"><button class="outline-button" id="addMaintenance">＋ Indisponibilité</button><button class="primary-button" id="recalculate">↻ Recalculer le planning</button></div></div>
           <section class="planning-notices"><article class="notice warning"><h4>⚠ Alertes <span id="alertCount">2</span></h4><p id="alertText">2 contraintes à examiner avant validation.</p><button id="showConflict">Voir le détail</button></article><article class="notice constraints"><h4>✦ Contraintes prises en compte</h4><ul><li>Maximum 8 h par ressource / jour</li><li>Pause quotidienne et horaires flexibles</li><li>Instructeurs non chevauchants</li></ul></article><article class="notice optimize"><span>✦</span><div><h4>Optimiser le planning</h4><p>Le recalcul conserve les créneaux validés et résout les conflits restants.</p><button class="primary-button small" id="optimize">Recalculer</button></div></article></section>
-          <section class="panel weekly-panel"><div class="weekly-controls"><div><button class="outline-button small" id="previousPeriod" aria-label="Période précédente">‹</button><button class="outline-button small" id="currentPeriod">Aujourd'hui</button><button class="outline-button small" id="nextPeriod" aria-label="Période suivante">›</button><strong id="planningPeriodLabel">Semaine sélectionnée</strong></div><div><button class="segmented active" data-planning-mode="week">Semaine</button><button class="segmented" data-planning-mode="month">Mois</button></div></div><div class="week-grid" id="weekGrid"></div></section>
+          <section class="panel weekly-panel"><div class="weekly-controls"><div><button class="outline-button small" id="previousPeriod" aria-label="Période précédente">‹</button><button class="outline-button small" id="currentPeriod">Aujourd'hui</button><button class="outline-button small" id="nextPeriod" aria-label="Période suivante">›</button><strong id="planningPeriodLabel">Semaine sélectionnée</strong></div><div><button class="segmented active" data-planning-mode="week">Semaine</button><button class="segmented" data-planning-mode="month">Mois</button><button class="outline-button small" id="exportPlanning">⇩ CSV</button><button class="outline-button small" id="exportPlanningPdf">⇩ PDF</button></div></div><div class="week-grid" id="weekGrid"></div></section>
           <section class="panel generated-panel" id="generatedPlanPanel"><div class="panel-heading"><div><h3 id="generatedPlanTitle">Aucun planning généré</h3><p id="generatedPlanSubtitle">Créez une promotion et lancez la génération pour afficher les rotations.</p></div><span class="status-pill success" id="generatedPlanStatus">En attente</span></div><div id="generatedSlots" class="generated-slots"></div></section>
         </section>
 
@@ -131,11 +124,6 @@
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><button class="modal-close" id="modalClose">×</button><div id="modalContent"></div></div>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-    <!-- Librairies PDF ajoutées ici -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-    
     <script src="app.js"></script>
   </body>
 </html>
