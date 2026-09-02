@@ -12,30 +12,39 @@
   <body>
     <div class="app-shell">
       <aside class="sidebar" id="mainSidebar">
+        <!-- ===== LOGO AIAC COMPLET ===== -->
         <a class="brand" href="#dashboard" aria-label="AIAC">
-          <div class="brand-logo-container">
-            <svg class="brand-svg" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="60" cy="60" r="55" stroke="#102a59" stroke-width="3" fill="white"/>
-              <g transform="translate(60, 60) rotate(-45)">
-                <path d="M-40 0 L40 0 L45 -8 L35 -3 L-30 -3 L-40 0" fill="#102a59"/>
-                <path d="M-40 0 L40 0 L45 8 L35 3 L-30 3 L-40 0" fill="#102a59"/>
-                <rect x="-30" y="-12" width="8" height="24" rx="2" fill="#102a59"/>
-                <rect x="25" y="-6" width="20" height="12" rx="2" fill="#102a59"/>
+          <div class="brand-logo-full">
+            <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Fond -->
+              <rect width="200" height="200" rx="20" fill="#102a59"/>
+              <!-- Cercle extérieur -->
+              <circle cx="100" cy="95" r="60" stroke="#FFD700" stroke-width="3" fill="none"/>
+              <!-- Avion stylisé -->
+              <g transform="translate(100, 95) rotate(-45)">
+                <path d="M-40 0 L40 0 L45 -8 L35 -3 L-30 -3 L-40 0" fill="#FFD700"/>
+                <path d="M-40 0 L40 0 L45 8 L35 3 L-30 3 L-40 0" fill="#FFD700"/>
+                <rect x="-30" y="-12" width="8" height="24" rx="2" fill="#FFD700"/>
+                <rect x="25" y="-6" width="20" height="12" rx="2" fill="#FFD700"/>
                 <circle cx="-32" cy="0" r="4" fill="#e74c3c"/>
               </g>
-              <path d="M20 60 A40 40 0 0 1 60 20" stroke="#1f6df2" stroke-width="3" stroke-linecap="round"/>
-              <path d="M20 60 A40 40 0 0 1 100 60" stroke="#1f6df2" stroke-width="3" stroke-linecap="round"/>
-              <path d="M20 60 A40 40 0 0 1 60 100" stroke="#1f6df2" stroke-width="3" stroke-linecap="round"/>
-              <circle cx="60" cy="60" r="6" fill="#e74c3c"/>
-              <circle cx="60" cy="60" r="3" fill="white"/>
-              <text x="60" y="112" text-anchor="middle" font-family="Manrope, sans-serif" font-size="14" font-weight="800" fill="#102a59" letter-spacing="2">AIAC</text>
+              <!-- Arcs Radar -->
+              <path d="M45 95 A55 55 0 0 1 100 40" stroke="#4FC3F7" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M45 95 A55 55 0 0 1 155 95" stroke="#4FC3F7" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M45 95 A55 55 0 0 1 100 150" stroke="#4FC3F7" stroke-width="2.5" stroke-linecap="round"/>
+              <!-- Centre -->
+              <circle cx="100" cy="95" r="6" fill="#e74c3c"/>
+              <circle cx="100" cy="95" r="3" fill="white"/>
+              <!-- Texte AIAC -->
+              <text x="100" y="175" text-anchor="middle" font-family="'Manrope', sans-serif" font-size="22" font-weight="800" fill="#FFD700" letter-spacing="3">AIAC</text>
             </svg>
           </div>
-          <span class="brand-name">
-            AVIATION<br />
-            <span class="brand-sub">ACADEMY</span>
-          </span>
+          <div class="brand-text">
+            <span class="brand-name">AVIATION<br />ACADEMY</span>
+            <span class="brand-sub">AIAC · Morocco</span>
+          </div>
         </a>
+
         <nav class="main-nav" aria-label="Navigation principale">
           <button class="nav-item active" data-view="dashboard"><span>⌂</span>Tableau de bord</button>
           <button class="nav-item" data-view="promotions"><span>♧</span>Promotions</button>
@@ -67,8 +76,7 @@
             </div>
           </div>
           <div class="user-tools">
-            <button aria-label="Notifications" class="icon-button notification">♧<b>3</b></button>
-            <button aria-label="Aide" class="icon-button">?</button>
+            <!-- ===== NOTIFICATION SUPPRIMÉE ===== -->
             <button class="user-profile" id="editUserProfile" aria-label="Modifier le profil">
               <span class="avatar" id="userAvatar">UT</span>
               <span class="user-name"><strong id="userDisplayName">Utilisateur</strong><small>Profil local</small></span>
