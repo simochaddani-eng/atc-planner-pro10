@@ -6,6 +6,7 @@ Supabase values are read from Streamlit Secrets, never hard-coded in GitHub.
 from __future__ import annotations
 
 import json
+import base64
 from pathlib import Path
 
 import streamlit as st
@@ -58,6 +59,15 @@ html = (ROOT / "index.html").read_text(encoding="utf-8")
 css = (ROOT / "styles.css").read_text(encoding="utf-8")
 javascript = (ROOT / "app.js").read_text(encoding="utf-8")
 
+# components.html renders the interface in an iframe. A relative image path
+# would therefore point to the iframe document rather than to this project.
+# Embed the AIAC logo so it is available identically on localhost and Streamlit
+# Community Cloud.
+logo_path = ROOT / "image.png"
+if logo_path.exists():
+    logo_data_uri = "data:image/png;base64," + base64.b64encode(logo_path.read_bytes()).decode("ascii")
+    html = html.replace('src="image.png"', f'src="{logo_data_uri}"')
+
 html = html.replace('<link rel="stylesheet" href="styles.css" />', f"<style>{css}</style>")
 html = html.replace(
     '<script src="app.js"></script>',
@@ -66,4 +76,7 @@ html = html.replace(
 
 # A regular responsive component is essential on phone. Do not force an iframe
 # to desktop width or fixed positioning.
-components.html(html, height=2200, scrolling=True)
+# The interface owns its scrolling and deliberately fills the Streamlit page.
+# A generous height prevents the application from being clipped on wide screens
+# while the responsive CSS keeps the phone layout compact.
+components.html(html, height=3000, scrolling=True)
