@@ -22,7 +22,6 @@ const storageKey = 'atc-planner-management-v3';
 const defaultSettings = { academyName: 'Aviation Academy', userName: 'Utilisateur', defaultStart: '09:00', defaultEnd: '16:30', defaultDuration: 45, defaultBreak: 45 };
 const remoteConfig = window.ATC_SUPABASE_CONFIG || {};
 const remoteState = { enabled: Boolean(remoteConfig.url && remoteConfig.anonKey), loaded: false, timer: null };
-
 function normaliseManagementData(saved) {
   if (!saved || !Array.isArray(saved.promotions) || !Array.isArray(saved.instructors)) return null;
   const demonstrationIds = new Set(['p-a', 'p-b', 'p-c', 'p-d', 'i-sophie', 'i-thomas', 'i-julien', 'i-camille', 'i-marc']);
@@ -30,15 +29,13 @@ function normaliseManagementData(saved) {
   const cleanedInstructors = saved.instructors.filter(item => !demonstrationIds.has(item.id)).map(item => ({ ...item, speciality: item.speciality === 'RADAR' ? 'Approche Radar' : item.speciality === 'TWR & RADAR' ? 'TWR + Approche Radar' : item.speciality }));
   return { promotions: cleanedPromotions, instructors: cleanedInstructors, resources: Array.isArray(saved.resources) && saved.resources.length ? saved.resources : defaultResources, students: Array.isArray(saved.students) ? saved.students : [], settings: { ...defaultSettings, ...(saved.settings || {}) }, maintenance: saved.maintenance || null };
 }
-
 function loadManagementData() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('atc-planner-management-v2') || localStorage.getItem('atc-planner-management-v1'));
     const normalised = normaliseManagementData(saved); if (normalised) return normalised;
-  } catch (_) { }
+  } catch (_) { /* Local storage can be disabled when opening a local file. */ }
   return { promotions: defaultPromotions, instructors: defaultInstructors, resources: defaultResources, students: [], settings: defaultSettings, maintenance: null };
 }
-
 const management = loadManagementData();
 let promotions = management.promotions;
 let instructors = management.instructors;
@@ -46,19 +43,16 @@ let resources = management.resources;
 let students = management.students;
 let settings = management.settings;
 state.maintenance = management.maintenance;
-
 function snapshotManagementData() { return { promotions, instructors, resources, students, settings, maintenance: state.maintenance }; }
 function cacheManagementData() {
-  try { localStorage.setItem(storageKey, JSON.stringify(snapshotManagementData())); } catch (_) { }
+  try { localStorage.setItem(storageKey, JSON.stringify(snapshotManagementData())); } catch (_) { /* Changes remain available during this visit. */ }
 }
 function persistManagementData() {
   cacheManagementData();
   if (remoteState.enabled && remoteState.loaded) queueRemoteSave();
 }
-
 function remoteHeaders(prefer = '') { return { apikey: remoteConfig.anonKey, Authorization: `Bearer ${remoteConfig.anonKey}`, 'Content-Type': 'application/json', ...(prefer ? { Prefer: prefer } : {}) }; }
 function remoteEndpoint() { return `${String(remoteConfig.url).replace(/\/$/, '')}/rest/v1/planner_state`; }
-
 function queueRemoteSave() {
   clearTimeout(remoteState.timer);
   remoteState.timer = setTimeout(async () => {
@@ -68,7 +62,6 @@ function queueRemoteSave() {
     } catch (_) { showToast('Données enregistrées localement ; la synchronisation Supabase sera réessayée.'); }
   }, 450);
 }
-
 async function loadRemoteManagementData() {
   if (!remoteState.enabled) return;
   try {
@@ -83,7 +76,6 @@ async function loadRemoteManagementData() {
     } else queueRemoteSave();
   } catch (_) { showToast('Supabase indisponible : les données restent enregistrées sur cet appareil.'); }
 }
-
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[char]); }
 function initials(name) { return name.split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase(); }
 
@@ -104,10 +96,8 @@ function countWorkingDays(from, needed, selectedDays) {
 }
 
 function formatDate(date) {
-  if (!date) return '';
   return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }).replace('.', '');
 }
-
 function updateCurrentClock() {
   const now = new Date();
   $('#todayDate').textContent = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -125,6 +115,7 @@ function calculate() {
   const positionHours = totalSessions * minutes / 60;
   const groups = Math.ceil(students / positions);
   const slotsPerDay = Math.max(1, Math.floor(durationMinutes() / minutes));
+  // A rotation is a complete pass of the groups through the positions. This makes the estimate readable operationally.
   const totalRotations = groups * sessions;
   const days = Math.ceil(totalRotations / slotsPerDay);
   const selectedDays = $$('#dayToggles button.selected').map(button => Number(button.dataset.day));
@@ -161,43 +152,76 @@ function dashboardRow(name, icon, blocks) {
   return `<div class="occupancy-row"><div class="resource-label"><span class="res-icon">${icon}</span><span>${name}<small>${capacity}</small></span></div><div class="time-track">${blocks.map(block => `<div class="booking ${block.type}" style="grid-column:${block.start}/span ${block.span}">${block.title}<span>${block.time}</span></div>`).join('')}</div></div>`;
 }
 
+/* Legacy static mock-up data retained only as a reference; it is not rendered. */
+function renderDashboardOccupancyDemo() {
+  const data = [
+    ['TWR 1', '♜', [{ start:1, span:2, title:'P2025-A', time:'08:00 – 09:30', type:'blue-booking' }, { start:3, span:2, title:'P2025-B', time:'09:45 – 11:15', type:'green-booking' }, { start:5, span:2, title:'P2025-C', time:'11:30 – 13:00', type:'purple-booking' }, { start:7, span:2, title:'P2025-A', time:'13:45 – 15:15', type:'amber-booking' }]],
+    ['TWR 2', '♜', [{ start:1, span:2, title:'P2025-B', time:'08:00 – 09:30', type:'green-booking' }, { start:3, span:2, title:'P2025-A', time:'09:45 – 11:15', type:'purple-booking' }, { start:5, span:2, title:'P2025-C', time:'11:30 – 13:00', type:'amber-booking' }, { start:7, span:2, title:'P2025-B', time:'13:45 – 15:15', type:'blue-booking' }]],
+    ['TWR 3', '♜', [{ start:1, span:2, title:'P2025-C', time:'08:00 – 09:30', type:'purple-booking' }, { start:3, span:2, title:'P2025-A', time:'09:45 – 11:15', type:'amber-booking' }, { start:5, span:2, title:'P2025-B', time:'11:30 – 13:00', type:'green-booking' }, { start:7, span:2, title:'P2025-C', time:'13:45 – 15:15', type:'blue-booking' }]],
+    ['RADAR 1', '◉', [{ start:1, span:8, title:'4 positions actives en parallèle', time:'08:00 – 16:00 · Approche Radar', type:'blue-booking' }]],
+    ['RADAR 2', '◉', [{ start:1, span:2, title:'P2025-B', time:'08:00 – 09:30', type:'green-booking' }, { start:3, span:2, title:'P2025-A', time:'09:45 – 11:15', type:'purple-booking' }, { start:5, span:2, title:'P2025-C', time:'11:30 – 13:00', type:'blue-booking' }, { start:7, span:2, title:'P2025-A', time:'13:45 – 15:15', type:'green-booking' }]]
+  ];
+  $('#dashboardOccupancy').innerHTML = data.map(row => dashboardRow(...row)).join('');
+}
+
+const weekDaysDemo = ['Lun. 02/06', 'Mar. 03/06', 'Mer. 04/06', 'Jeu. 05/06', 'Ven. 06/06'];
+const weekResources = [
+  { name:'TWR 1', sub:'1 position', days:[[0,'P2025-A','08:00 – 10:30','blue'],[1,'P2025-C','09:00 – 11:30','green'],[3,'P2025-A','08:00 – 10:30','blue'],[4,'P2025-D','09:00 – 11:30','amber']] },
+  { name:'TWR 2', sub:'1 position', days:[[0,'P2025-B','10:30 – 13:00','green'],[1,'P2025-B','10:30 – 13:00','conflict'],[2,'P2025-D','11:00 – 13:30','amber'],[3,'P2025-C','08:00 – 10:30','green'],[4,'P2025-F','13:30 – 16:00','purple']] },
+  { name:'RADAR 1', sub:'4 positions polyvalentes', days:[[0,'Approche Radar','08:00 – 11:30','blue'],[1,'En-route Radar','12:30 – 16:00','green'],[2,'Approche Radar','08:00 – 11:30','blue'],[3,'En-route Radar','12:30 – 16:00','green'],[4,'Approche Radar','08:00 – 11:30','blue']] },
+  { name:'RADAR 2', sub:'2 positions polyvalentes', days:[[0,'P2025-B','08:00 – 12:00','green'],[1,'P2025-C','13:30 – 17:00','purple'],[2,'Maintenance','09:00 – 12:00','maintenance'],[3,'P2025-E','13:30 – 17:00','amber'],[4,'P2025-A','08:00 – 12:00','blue']] }
+];
+
+function renderWeekGridDemo() {
+  const heads = ['Ressource / position', ...weekDaysDemo].map((day, index) => `<div class="grid-head">${day}${index ? '<small>08:00 · 16:30</small>' : ''}</div>`).join('');
+  const rows = weekResources.map(resource => {
+    const cells = weekDaysDemo.map((_, index) => {
+      const items = resource.days.filter(item => item[0] === index);
+      let html = items.map(item => `<div class="grid-event ${item[3] === 'conflict' ? 'amber-event conflict' : item[3] === 'maintenance' ? 'maintenance' : `${item[3]}-event`}"><b>${item[1]}</b><span>${item[2]}</span></div>`).join('');
+      if (state.maintenance && resource.name === 'RADAR 2' && index === 3) html += '<div class="grid-event maintenance"><b>Indisponible</b><span>09:00 – 10:30</span></div>';
+      return `<div class="grid-cell">${html}</div>`;
+    }).join('');
+    return `<div class="grid-res-label">${resource.name}<small>${resource.sub}</small></div>${cells}`;
+  }).join('');
+  $('#weekGrid').innerHTML = heads + rows;
+}
+
 function startOfWeek(date) {
   const result = new Date(date);
   result.setHours(12, 0, 0, 0);
   result.setDate(result.getDate() - ((result.getDay() + 6) % 7));
   return result;
 }
-
 function addDays(date, amount) { const result = new Date(date); result.setDate(result.getDate() + amount); return result; }
 function dateKey(date) { return date.toISOString().slice(0, 10); }
 function dateFromKey(value) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? null : date; }
 function frenchDay(date) { return date.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' }).replace('.', ''); }
-
+function timeRange(start, minutes) {
+  const [hour, minute] = (start || '09:00').split(':').map(Number);
+  const begin = hour * 60 + minute; const end = begin + minutes;
+  const pad = value => String(value).padStart(2, '0');
+  return `${pad(Math.floor(begin / 60))}:${pad(begin % 60)} – ${pad(Math.floor(end / 60))}:${pad(end % 60)}`;
+}
 function planningRows() {
   return resources.map(resource => ({ id: resource.id, name: resource.name, sub: `${resource.positions} position${resource.positions > 1 ? 's' : ''} · ${resource.type}` }));
 }
-
 function resourceForPromotion(promotion) {
   const preferred = (promotion.selectedResourceIds || []).map(id => resources.find(resource => resource.id === id)).find(Boolean);
   return preferred || resources.find(resource => resource.phases.includes(promotion.phase));
 }
-
 function nextWorkingDate(start, offset) {
   let result = new Date(start); let added = 0;
   while (added < offset) { result = addDays(result, 1); if (result.getDay() !== 0 && result.getDay() !== 6) added++; }
   return result;
 }
-
 function minutesFromTime(value, fallback) {
   const [hour, minute] = (value || fallback).split(':').map(Number);
   return hour * 60 + minute;
 }
-
 function timeLabel(minutes) {
   const pad = value => String(value).padStart(2, '0');
   return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
-
 function dailySlots(promotion) {
   const start = minutesFromTime(promotion.dayStart, '09:00');
   const end = minutesFromTime(promotion.dayEnd, '16:30');
@@ -213,7 +237,6 @@ function dailySlots(promotion) {
   const validSlots = slots.filter(slot => slot + duration <= end);
   return validSlots.length ? validSlots : [start];
 }
-
 function scheduledEvents() {
   const colours = ['blue', 'green', 'purple', 'amber']; const events = [];
   promotions.filter(promotion => promotion.status === 'Planifiée' && promotion.startDate).forEach((promotion, promotionIndex) => {
@@ -235,28 +258,22 @@ function scheduledEvents() {
   });
   return events;
 }
-
 function compatibleResourcesForPromotion(promotion) {
   const selected = (promotion.selectedResourceIds || []).map(id => resources.find(resource => resource.id === id)).filter(Boolean);
   const compatible = resources.filter(resource => resource.availability !== 'Indisponible' && resource.phases.includes(promotion.phase));
   return [...selected, ...compatible].filter((resource, index, list) => resource.availability !== 'Indisponible' && resource.phases.includes(promotion.phase) && list.findIndex(item => item.id === resource.id) === index);
 }
-
 function recalculateSchedule() {
   const planned = promotions.filter(promotion => promotion.status === 'Planifiée' && promotion.startDate).sort((first, second) => first.startDate.localeCompare(second.startDate));
   const previousPlans = new Map(planned.map(promotion => [promotion.id, promotion.plannedEvents]));
   const restorePreviousPlans = () => planned.forEach(promotion => {
-    if (previousPlans.get(promotion.id)) promotion.plannedEvents = previousPlans.get(promotion.id); 
-    else delete promotion.plannedEvents;
+    if (previousPlans.get(promotion.id)) promotion.plannedEvents = previousPlans.get(promotion.id); else delete promotion.plannedEvents;
   });
-  const occupied = new Map(); 
-  let generated = 0;
-  
+  const occupied = new Map(); let generated = 0;
+  // Locked slots are validated operational decisions: they are never moved.
   planned.flatMap(promotion => (promotion.plannedEvents || []).filter(event => event.locked).map(event => ({ ...event, promotionId: promotion.id }))).forEach(event => {
-    const key = `${event.resourceId}-${event.date}`; 
-    occupied.set(key, [...(occupied.get(key) || []), event]);
+    const key = `${event.resourceId}-${event.date}`; occupied.set(key, [...(occupied.get(key) || []), event]);
   });
-  
   for (const promotion of planned) {
     const resourcesForPhase = compatibleResourcesForPromotion(promotion);
     const duration = Math.max(1, Number(promotion.sessionDuration) || 45);
@@ -266,19 +283,11 @@ function recalculateSchedule() {
     const rotations = Math.max(1, Number(promotion.sessions) || 1) * groups;
     const dayEnd = minutesFromTime(promotion.dayEnd, '16:30');
     const slots = dailySlots(promotion).filter(slot => slot + duration <= dayEnd);
-    
-    if (!resourcesForPhase.length || !slots.length) { 
-      restorePreviousPlans(); 
-      return { ok: false, generated, message: `Impossible de planifier ${promotion.name} : vérifiez les ressources ou les horaires.` }; 
-    }
-    
+    if (!resourcesForPhase.length || !slots.length) { restorePreviousPlans(); return { ok: false, generated, message: `Impossible de planifier ${promotion.name} : vérifiez les ressources ou les horaires.` }; }
     const locked = (promotion.plannedEvents || []).filter(event => event.locked);
     const lockedKeys = new Set(locked.map(event => `${event.session}-${event.group}`));
     const pending = Array.from({ length: rotations }, (_, index) => ({ group: (index % groups) + 1, session: Math.floor(index / groups) + 1 })).filter(item => !lockedKeys.has(`${item.session}-${item.group}`));
-    const events = [...locked]; 
-    let rotation = 0; 
-    let dayOffset = 0;
-    
+    const events = [...locked]; let rotation = 0; let dayOffset = 0;
     while (rotation < pending.length && dayOffset < 730) {
       const date = nextWorkingDate(dateFromKey(promotion.startDate), dayOffset);
       const dateValue = dateKey(date);
@@ -292,38 +301,17 @@ function recalculateSchedule() {
           .find(item => !(occupied.get(`${item.id}-${dateValue}`) || []).some(event => startMinutes < event.endMinutes && startMinutes + duration > event.startMinutes));
         if (!resource) continue;
         const instructorId = promotion.groupInstructorIds?.[group] || promotion.phaseInstructorId || '';
-        const eventId = `${promotion.id}-${session}-${group}`;
-        const event = { 
-          id: eventId, 
-          resourceId: resource.id, 
-          date: dateValue, 
-          title: `${promotion.name} · G${group}`, 
-          time: `${timeLabel(startMinutes)} – ${timeLabel(startMinutes + duration)}`, 
-          startMinutes, 
-          endMinutes: startMinutes + duration, 
-          group, 
-          session, 
-          instructorId,
-          locked: false
-        };
-        const key = `${resource.id}-${dateValue}`; 
-        occupied.set(key, [...(occupied.get(key) || []), event]); 
-        events.push(event); 
-        rotation++; 
-        generated++;
+        const event = { id: `${promotion.id}-${session}-${group}`, resourceId: resource.id, date: dateValue, title: `${promotion.name} · G${group}`, time: `${timeLabel(startMinutes)} – ${timeLabel(startMinutes + duration)}`, startMinutes, endMinutes: startMinutes + duration, group, session, instructorId };
+        const key = `${resource.id}-${dateValue}`; occupied.set(key, [...(occupied.get(key) || []), event]); events.push(event); rotation++; generated++;
       }
       dayOffset++;
     }
-    if (rotation < pending.length) { 
-      restorePreviousPlans(); 
-      return { ok: false, generated, message: `Impossible de trouver assez de créneaux pour ${promotion.name}.` }; 
-    }
+    if (rotation < pending.length) { restorePreviousPlans(); return { ok: false, generated, message: `Impossible de trouver assez de créneaux pour ${promotion.name}.` }; }
     promotion.plannedEvents = events;
   }
   persistManagementData();
   return { ok: true, generated, message: `${generated} créneau${generated > 1 ? 'x' : ''} recalculé${generated > 1 ? 's' : ''} automatiquement.` };
 }
-
 function bindPlanningActions() {
   const oldGenerateButton = $('#generatePlan');
   const generateButton = oldGenerateButton.cloneNode(true);
@@ -347,7 +335,6 @@ function bindPlanningActions() {
     showToast(result.message);
   });
 }
-
 function planningConflicts() {
   const events = scheduledEvents(); const byResourceAndDate = new Map(); const byInstructorAndDate = new Map(); const conflicts = [];
   events.forEach(event => {
@@ -368,7 +355,6 @@ function planningConflicts() {
   if (state.maintenance) events.filter(event => event.resourceId === state.maintenance.resourceId && event.date === state.maintenance.date).forEach(event => conflicts.push({ type: 'maintenance', event }));
   return conflicts;
 }
-
 function updatePlanningAlerts() {
   const conflicts = planningConflicts(); const count = $('#alertCount'); const text = $('#alertText');
   count.textContent = conflicts.length;
@@ -377,14 +363,12 @@ function updatePlanningAlerts() {
   else if (conflicts[0].type === 'instructor') text.textContent = `${conflicts.length} chevauchement${conflicts.length > 1 ? 's' : ''} d’instructeur à résoudre.`;
   else text.textContent = `${conflicts.length} chevauchement${conflicts.length > 1 ? 's' : ''} de ressource à résoudre.`;
 }
-
 function displayedDates() {
   const start = startOfWeek(state.planningWeekStart); const length = state.planningMode === 'month' ? 20 : 5;
   const dates = []; let cursor = new Date(start);
   while (dates.length < length) { if (cursor.getDay() !== 0 && cursor.getDay() !== 6) dates.push(new Date(cursor)); cursor = addDays(cursor, 1); }
   return dates;
 }
-
 function renderDashboardOccupancy() {
   const dates = displayedDates().slice(0, 5); const events = scheduledEvents();
   const rows = planningRows().map(resource => {
@@ -396,7 +380,6 @@ function renderDashboardOccupancy() {
   });
   $('#dashboardOccupancy').innerHTML = rows.map(row => dashboardRow(...row)).join('');
 }
-
 function renderDashboardPreview() {
   const target = $('#dashboardPreview'); const dates = displayedDates().slice(0, 10); const events = scheduledEvents();
   const planned = promotions.filter(promotion => promotion.status === 'Planifiée');
@@ -408,7 +391,6 @@ function renderDashboardPreview() {
   }).join('');
   target.innerHTML = `<div class='calendar-days'>${labels}</div><div class='promotion-bars'>${bars}</div>`;
 }
-
 function renderDashboard() {
   const active = promotions.filter(promotion => promotion.status === 'Planifiée' || promotion.status === 'En cours');
   const students = promotions.reduce((sum, promotion) => sum + (Number(promotion.students) || 0), 0);
@@ -437,7 +419,6 @@ function renderDashboard() {
   }
   renderDashboardPreview(); renderDashboardOccupancy();
 }
-
 function renderWeekGrid() {
   const target = $('#weekGrid'); const dates = displayedDates(); const rows = planningRows(); const events = scheduledEvents();
   target.style.gridTemplateColumns = `143px repeat(${dates.length}, minmax(130px, 1fr))`;
@@ -455,105 +436,34 @@ function renderWeekGrid() {
   target.innerHTML = heads + content;
   updatePlanningAlerts();
 }
-
 function renderGeneratedPlan() {
   const planned = promotions.filter(promotion => promotion.status === 'Planifiée' && promotion.startDate);
-  const title = $('#generatedPlanTitle'); 
-  const subtitle = $('#generatedPlanSubtitle'); 
-  const status = $('#generatedPlanStatus'); 
-  const slots = $('#generatedSlots');
-  
+  const title = $('#generatedPlanTitle'); const subtitle = $('#generatedPlanSubtitle'); const status = $('#generatedPlanStatus'); const slots = $('#generatedSlots');
   if (!planned.length) {
-    title.textContent = 'Aucun planning généré'; 
-    subtitle.textContent = 'Créez une promotion et lancez la génération pour afficher les rotations.'; 
-    status.textContent = 'En attente'; 
-    slots.innerHTML = '';
+    title.textContent = 'Aucun planning généré'; subtitle.textContent = 'Créez une promotion et lancez la génération pour afficher les rotations.'; status.textContent = 'En attente'; slots.innerHTML = '';
     return;
   }
-  
-  const promotion = planned[0]; 
-  const events = scheduledEvents().filter(event => event.promotionId === promotion.id).slice(0, 8);
-  
-  title.textContent = `Planning généré — ${promotion.name}`; 
-  subtitle.textContent = `${events.length} séances sont affichées à partir du ${formatDate(dateFromKey(promotion.startDate))}.`; 
-  status.textContent = 'Prêt à valider';
-  
+  const promotion = planned[0]; const events = scheduledEvents().filter(event => event.promotionId === promotion.id).slice(0, 8);
+  title.textContent = `Planning généré — ${promotion.name}`; subtitle.textContent = `${events.length} séances sont affichées à partir du ${formatDate(dateFromKey(promotion.startDate))}.`; status.textContent = 'Prêt à valider';
   slots.innerHTML = events.map((event, index) => {
     const instructor = instructorForEvent(promotion, event);
-    const eventId = event.id || `${promotion.id}-${event.session}-${event.group}`;
-    if (!promotion.plannedEvents) promotion.plannedEvents = [];
-    if (!promotion.plannedEvents.find(e => e.id === eventId)) {
-      promotion.plannedEvents.push({ ...event, id: eventId, locked: false });
-    }
-    
-    return `<article class='generated-slot ${event.locked ? 'locked-slot' : ''}'>
-      <strong>Séance ${index + 1} ${event.locked ? '· Validée' : ''}</strong>
-      <p>${event.time} · ${resources.find(resource => resource.id === event.resourceId)?.name || resourceForPromotion(promotion).name}</p>
-      <span class='tag'>${escapeHtml(event.title)}</span>
-      <label class='slot-instructor'>Instructeur
-        <select data-slot-instructor="${promotion.id}" data-event-id="${eventId}">
-          ${instructorOptions(promotion.phase, instructor?.id || '')}
-        </select>
-      </label>
-      <button class='outline-button small toggle-lock-btn' data-toggle-lock="${promotion.id}" data-event-id="${eventId}">
-        ${event.locked ? 'Déverrouiller' : 'Valider le créneau'}
-      </button>
-    </article>`;
+    return `<article class='generated-slot ${event.locked ? 'locked-slot' : ''}'><strong>Séance ${index + 1} ${event.locked ? '· Validée' : ''}</strong><p>${event.time} · ${resources.find(resource => resource.id === event.resourceId)?.name || resourceForPromotion(promotion).name}</p><span class='tag'>${escapeHtml(event.title)}</span><label class='slot-instructor'>Instructeur<select data-slot-instructor="${promotion.id}" data-event-id="${event.id || `${promotion.id}-${event.session}-${event.group}`}">${instructorOptions(promotion.phase, instructor?.id || '')}</select></label><button class='outline-button small' data-toggle-lock="${promotion.id}" data-event-id="${event.id || `${promotion.id}-${event.session}-${event.group}`}">${event.locked ? 'Déverrouiller' : 'Valider le créneau'}</button></article>`;
   }).join('');
-  
-  document.querySelectorAll('.toggle-lock-btn').forEach(button => {
-    button.removeEventListener('click', handleToggleLock);
-    button.addEventListener('click', handleToggleLock);
+}
+
+function slotsForGeneratedPlan() {
+  const info = calculate();
+  const names = instructors.length ? instructors.map(instructor => instructor.name) : ['Affectation à confirmer'];
+  const resourceName = info.selected[0]?.name || 'RADAR 1';
+  const startHour = $('#dayStart').value;
+  const groups = Array.from({length: Math.min(info.groups, 8)}, (_, i) => {
+    const groupSize = i === info.groups - 1 ? info.students - (i * info.positions) : Math.min(info.positions, info.students - i * info.positions);
+    const mins = ((Number(startHour.split(':')[0]) * 60 + Number(startHour.split(':')[1])) + i * info.minutes);
+    const h = String(Math.floor(mins / 60)).padStart(2,'0'); const m = String(mins % 60).padStart(2,'0');
+    const end = mins + info.minutes; const eh = String(Math.floor(end / 60)).padStart(2,'0'); const em = String(end % 60).padStart(2,'0');
+    return `<article class="generated-slot"><strong>Groupe ${i+1} · ${groupSize} étudiants</strong><p>${h}:${m} – ${eh}:${em} · ${resourceName}</p><span class="tag">${names[i % names.length]}</span></article>`;
   });
-}
-
-function handleToggleLock(event) {
-  event.preventDefault();
-  event.stopPropagation();
-  const button = event.currentTarget;
-  const promotionId = button.dataset.toggleLock;
-  const eventId = button.dataset.eventId;
-  
-  if (!promotionId || !eventId) {
-    showToast('Erreur: données du créneau manquantes.');
-    return;
-  }
-  
-  toggleSlotLock(promotionId, eventId);
-}
-
-function toggleSlotLock(promotionId, eventId) {
-  const promotion = promotions.find(item => item.id === promotionId);
-  if (!promotion) {
-    showToast('Promotion non trouvée.');
-    return;
-  }
-  
-  let event = promotion.plannedEvents?.find(item => item.id === eventId);
-  
-  if (!event && promotion.plannedEvents) {
-    const possibleIds = [
-      eventId,
-      eventId.replace(/-/g, '_'),
-      `${promotionId}-${eventId.split('-').pop()}`
-    ];
-    
-    for (const id of possibleIds) {
-      event = promotion.plannedEvents.find(item => item.id === id);
-      if (event) break;
-    }
-  }
-  
-  if (!event) {
-    showToast('Créneau non trouvé. Recalculer le planning peut résoudre le problème.');
-    return;
-  }
-  
-  event.locked = !event.locked;
-  persistManagementData();
-  renderGeneratedPlan();
-  renderWeekGrid();
-  showToast(event.locked ? 'Créneau validé et verrouillé.' : 'Créneau déverrouillé.');
+  return groups.join('');
 }
 
 function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
@@ -673,7 +583,6 @@ function deletePromotion(id) {
 }
 
 const phasePath = ['aerodrome', 'approach-procedure', 'enroute-procedure', 'approach-radar', 'enroute-radar'];
-
 function compatibleInstructorsForPhase(phase) {
   return instructors.filter(instructor => {
     if (phase === 'aerodrome') return instructor.speciality === 'TWR' || instructor.speciality === 'TWR + Approche Radar';
@@ -681,37 +590,36 @@ function compatibleInstructorsForPhase(phase) {
     return instructor.speciality === 'En-route Radar';
   });
 }
-
 function instructorForEvent(promotion, event) {
   const instructorId = event?.instructorId || promotion.groupInstructorIds?.[event?.group] || promotion.phaseInstructorId;
   return instructors.find(instructor => instructor.id === instructorId) || null;
 }
-
 function instructorOptions(phase, selected = '') {
   const options = compatibleInstructorsForPhase(phase);
   return `<option value="">Non affecté</option>${options.map(instructor => `<option value="${instructor.id}" ${instructor.id === selected ? 'selected' : ''}>${escapeHtml(instructor.name)}</option>`).join('')}`;
 }
-
 function setPhaseInstructor(promotionId, instructorId) {
   const promotion = promotions.find(item => item.id === promotionId); if (!promotion) return;
   promotion.phaseInstructorId = instructorId || '';
   (promotion.plannedEvents || []).forEach(event => { if (!event.manualInstructor) event.instructorId = instructorId || ''; });
   persistManagementData(); renderPhaseTracking(); renderGeneratedPlan(); renderSessions(); showToast('Instructeur de phase mis à jour.');
 }
-
 function setGroupInstructor(promotionId, group, instructorId) {
   const promotion = promotions.find(item => item.id === promotionId); if (!promotion) return;
   promotion.groupInstructorIds = { ...(promotion.groupInstructorIds || {}), [group]: instructorId || '' };
   (promotion.plannedEvents || []).filter(event => Number(event.group) === Number(group) && !event.manualInstructor).forEach(event => { event.instructorId = instructorId || ''; });
   persistManagementData(); renderPhaseTracking(); renderGeneratedPlan(); renderSessions(); showToast(`Instructeur du groupe ${group} mis à jour.`);
 }
-
 function setSlotInstructor(promotionId, eventId, instructorId) {
   const promotion = promotions.find(item => item.id === promotionId); const event = promotion?.plannedEvents?.find(item => item.id === eventId);
   if (!event) return;
   event.instructorId = instructorId || ''; event.manualInstructor = true; persistManagementData(); renderGeneratedPlan(); renderSessions(); renderPhaseTracking(); showToast('Instructeur du créneau mis à jour.');
 }
-
+function toggleSlotLock(promotionId, eventId) {
+  const promotion = promotions.find(item => item.id === promotionId); const event = promotion?.plannedEvents?.find(item => item.id === eventId);
+  if (!event) return;
+  event.locked = !event.locked; persistManagementData(); renderGeneratedPlan(); renderWeekGrid(); showToast(event.locked ? 'Créneau validé et verrouillé.' : 'Créneau déverrouillé.');
+}
 function renderPhaseTracking() {
   const promotion = promotions.find(item => item.id === state.trackingPromotionId) || promotions[0];
   const journey = $('#phaseJourney');
@@ -765,76 +673,33 @@ function downloadCsv(filename, rows) {
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url);
 }
-
-function exportPlanningExcel() {
-  const events = scheduledEvents().sort((a, b) => a.date.localeCompare(b.date) || a.startMinutes - b.startMinutes);
-  const rows = [['Promotion/Groupe', 'Date', 'Heure', 'Ressource', 'Instructeur', 'Statut']];
-  
-  events.forEach(event => {
-    const resource = resources.find(item => item.id === event.resourceId)?.name || 'Ressource';
-    const promotion = promotions.find(item => item.id === event.promotionId);
-    const instructor = promotion ? instructorForEvent(promotion, event)?.name || 'Non affecté' : 'Non affecté';
-    const dateObj = dateFromKey(event.date);
-    rows.push([
-      event.title || 'Séance',
-      dateObj ? formatDate(dateObj) : event.date,
-      event.time || '',
-      resource,
-      instructor,
-      event.locked ? 'Validée' : 'Planifiée'
-    ]);
-  });
-  
-  if (rows.length === 1) rows.push(['Aucune séance planifiée', '', '', '', '', '']);
-  
-  downloadCsv('atc-planner-planning.csv', rows);
-  showToast('Export Excel (CSV) du planning téléchargé.');
-}
-
 function pdfSafeText(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, ' ').replace(/[\\()]/g, '\\$&');
 }
-
 function exportPlanningPdf() {
   const events = scheduledEvents().sort((a, b) => a.date.localeCompare(b.date) || a.startMinutes - b.startMinutes);
-  
-  if (!events.length) {
-    showToast('Aucune séance à exporter.');
-    return;
-  }
-  
-  const rows = events.map(event => {
+  const rows = events.length ? events.map(event => {
     const resource = resources.find(item => item.id === event.resourceId)?.name || 'Ressource';
     const promotion = promotions.find(item => item.id === event.promotionId);
-    const instructor = promotion ? instructorForEvent(promotion, event)?.name || 'Non affecté' : 'Non affecté';
-    const dateObj = dateFromKey(event.date);
-    const dateStr = dateObj ? formatDate(dateObj) : event.date;
-    return `${dateStr} | ${event.time} | ${event.title} | ${resource} | ${instructor}${event.locked ? ' | ✓ Validé' : ''}`;
-  });
-  
+    const instructor = promotion ? instructorForEvent(promotion, event)?.name || 'Non affecte' : 'Non affecte';
+    return `${event.date} | ${event.time} | ${event.title} | ${resource} | ${instructor}${event.locked ? ' | Valide' : ''}`;
+  }) : ['Aucune seance planifiee.'];
   const pages = [];
   for (let index = 0; index < rows.length; index += 38) pages.push(rows.slice(index, index + 38));
-  
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
   const pageIds = [];
-  
   pages.forEach((lines, index) => {
     const pageId = 4 + index * 2; const contentId = pageId + 1; pageIds.push(pageId);
     const content = ['BT', '/F1 16 Tf', '40 800 Td', '(ATC Planner - Planning) Tj', '/F1 9 Tf', '0 -22 Td', `(Export du ${pdfSafeText(new Date().toLocaleDateString('fr-FR'))}) Tj`, '0 -20 Td', ...lines.flatMap(line => [`(${pdfSafeText(line)}) Tj`, '0 -16 Td']), 'ET'].join('\n');
     objects[pageId - 1] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R >>`;
     objects[contentId - 1] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
   });
-  
   objects[1] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
   let pdf = '%PDF-1.4\n'; const offsets = [0];
   objects.forEach((object, index) => { offsets[index + 1] = pdf.length; pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
   const xref = pdf.length; pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  
-  const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }));
-  const link = document.createElement('a'); link.href = url; link.download = 'atc-planner-planning.pdf'; link.click(); URL.revokeObjectURL(url);
-  showToast('PDF du planning téléchargé.');
+  const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' })); const link = document.createElement('a'); link.href = url; link.download = 'atc-planner-planning.pdf'; link.click(); URL.revokeObjectURL(url); showToast('PDF du planning téléchargé.');
 }
-
 function renderSessions() {
   const select = $('#sessionFilter'); const filter = select?.value || 'all'; const today = dateKey(new Date()); const weekEnd = dateKey(addDays(startOfWeek(new Date()), 6));
   let events = scheduledEvents().sort((first, second) => first.date.localeCompare(second.date) || first.startMinutes - second.startMinutes);
@@ -844,9 +709,8 @@ function renderSessions() {
   $('#sessionsSubtitle').textContent = events.length ? 'Créneaux générés à partir des horaires, pauses et positions sélectionnées.' : 'Planifiez une promotion pour générer les séances.';
   const target = $('#sessionsTable');
   if (!events.length) { target.innerHTML = '<div class="empty-state">Aucune séance pour cette période.</div>'; return; }
-  target.innerHTML = `<div class="session-table-head"><span>Promotion / groupe</span><span>Date</span><span>Créneau</span><span>Ressource</span><span>Statut</span></div>${events.map(event => `<div class="session-table-row"><strong>${escapeHtml(event.title)}</strong><span>${formatDate(dateFromKey(event.date))}</span><span>${event.time}</span><span>${escapeHtml(resources.find(resource => resource.id === event.resourceId)?.name || '—')}</span><span class="session-status">${event.locked ? '✓ Validée' : 'Planifiée'}</span></div>`).join('')}`;
+  target.innerHTML = `<div class="session-table-head"><span>Promotion / groupe</span><span>Date</span><span>Créneau</span><span>Ressource</span><span>Statut</span></div>${events.map(event => `<div class="session-table-row"><strong>${escapeHtml(event.title)}</strong><span>${formatDate(dateFromKey(event.date))}</span><span>${event.time}</span><span>${escapeHtml(resources.find(resource => resource.id === event.resourceId)?.name || '—')}</span><span class="session-status">Planifiée</span></div>`).join('')}`;
 }
-
 function renderStudents() {
   const select = $('#studentPromotionSelect'); const target = $('#studentList');
   if (!promotions.length) { select.innerHTML = '<option>Aucune promotion</option>'; $('#studentCountLabel').textContent = '0 étudiant'; target.innerHTML = '<div class="empty-state">Ajoutez une promotion avant d’ajouter des étudiants.</div>'; return; }
@@ -857,13 +721,11 @@ function renderStudents() {
   $('#studentCountLabel').textContent = `${roster.length} inscrit${roster.length > 1 ? 's' : ''} · effectif prévu ${promotion.students}`;
   target.innerHTML = roster.length ? roster.map((student, index) => `<article class="student-card"><span class="student-avatar">${initials(student.name)}</span><div><strong>${escapeHtml(student.name)}</strong><small>Étudiant ${index + 1} · ${escapeHtml(promotion.name)}</small></div><button data-delete-student="${student.id}" title="Supprimer">×</button></article>`).join('') : '<div class="empty-state">Aucun étudiant nommé. Utilisez « Ajouter un étudiant » pour constituer la liste.</div>';
 }
-
 function addStudentModal() {
   if (!promotions.length) { showToast('Créez une promotion avant d’ajouter des étudiants.'); setView('promotions'); return; }
   const options = promotions.map(promotion => `<option value="${promotion.id}" ${promotion.id === state.studentPromotionId ? 'selected' : ''}>${escapeHtml(promotion.name)}</option>`).join('');
   openModal(`<h3>Ajouter un étudiant</h3><p>Il sera rattaché à la promotion sélectionnée et l’effectif sera actualisé.</p><div class="modal-form"><label>Nom complet<input id="newStudentName" autocomplete="name" placeholder="Ex. Amine Bensaid" /></label><label>Promotion<select id="newStudentPromotion">${options}</select></label></div><div class="modal-actions"><button class="outline-button" id="modalCancel">Annuler</button><button class="primary-button" id="saveStudent">Ajouter</button></div>`);
 }
-
 function saveStudentFromModal() {
   const name = $('#newStudentName')?.value.trim(); const promotionId = $('#newStudentPromotion')?.value;
   if (!name || !promotionId) { showToast('Indiquez le nom et la promotion de l’étudiant.'); return; }
@@ -871,14 +733,12 @@ function saveStudentFromModal() {
   if (promotion) promotion.students = Math.max(0, Number(promotion.students) || 0) + 1;
   state.studentPromotionId = promotionId; persistManagementData(); renderStudents(); renderPromotions(); renderDashboard(); renderPhaseTracking(); closeModal(); showToast(`${name} a été ajouté.`);
 }
-
 function deleteStudent(id) {
   const student = students.find(item => item.id === id); if (!student) return;
   students = students.filter(item => item.id !== id); const promotion = promotions.find(item => item.id === student.promotionId);
   if (promotion) promotion.students = Math.max(0, (Number(promotion.students) || 0) - 1);
   persistManagementData(); renderStudents(); renderPromotions(); renderDashboard(); renderPhaseTracking(); showToast('Étudiant supprimé.');
 }
-
 function renderReports() {
   const events = scheduledEvents(); const plannedPromotions = promotions.filter(promotion => promotion.status === 'Planifiée');
   const totalHours = events.reduce((sum, event) => sum + (event.endMinutes - event.startMinutes) / 60, 0);
@@ -888,7 +748,6 @@ function renderReports() {
   const max = Math.max(1, ...resourceHours.map(item => item.hours));
   $('#resourceReportList').innerHTML = resourceHours.length ? resourceHours.map(item => `<div class="resource-report-row"><strong>${escapeHtml(item.resource.name)}</strong><div class="meter"><i style="width:${item.hours / max * 100}%"></i></div><span>${item.hours.toFixed(item.hours % 1 ? 1 : 0)} h</span></div>`).join('') : '<div class="empty-state">Aucune ressource configurée.</div>';
 }
-
 function renderSettings() {
   $('#settingUserName').value = settings.userName || 'Utilisateur';
   $('#settingAcademyName').value = settings.academyName;
@@ -897,26 +756,23 @@ function renderSettings() {
   $('#settingDefaultDuration').value = settings.defaultDuration;
   $('#settingDefaultBreak').value = settings.defaultBreak;
 }
-
 function renderUserProfile() {
   const userName = settings.userName?.trim() || 'Utilisateur';
   $('#userDisplayName').textContent = userName;
-  $('#userAvatar').textContent = initials(userName);
+  $('#userAvatar').setAttribute('aria-label', `Profil utilisateur : ${userName}`);
+  $('#userAvatar').setAttribute('title', userName);
   if ($('#pageTitle').textContent.startsWith('Bonjour,')) $('#pageTitle').textContent = `Bonjour, ${userName}`;
 }
-
 function userProfileModal() {
   const userName = settings.userName?.trim() || 'Utilisateur';
   openModal(`<h3>Votre profil</h3><p>Ce nom sera affiché dans l’en-tête de votre espace ATC Planner.</p><div class="modal-form"><label>Votre nom<input id="profileUserName" autocomplete="name" value="${escapeHtml(userName)}" placeholder="Ex. Mohamed Chaddani" /></label></div><div class="modal-actions"><button class="outline-button" id="modalCancel">Annuler</button><button class="primary-button" id="saveUserProfile">Enregistrer</button></div>`);
 }
-
 function saveUserProfile() {
   const userName = $('#profileUserName')?.value.trim();
   if (!userName) { $('#profileUserName')?.focus(); showToast('Indiquez le nom à afficher.'); return; }
   settings = { ...settings, userName };
   persistManagementData(); renderUserProfile(); renderSettings(); closeModal(); showToast('Nom utilisateur enregistré.');
 }
-
 function saveSettings() {
   settings = { academyName: $('#settingAcademyName').value.trim() || 'Aviation Academy', userName: $('#settingUserName').value.trim() || 'Utilisateur', defaultStart: $('#settingDefaultStart').value || '09:00', defaultEnd: $('#settingDefaultEnd').value || '16:30', defaultDuration: Math.max(1, Number($('#settingDefaultDuration').value) || 45), defaultBreak: Math.max(0, Number($('#settingDefaultBreak').value) || 0) };
   document.querySelector('.brand-name').innerHTML = escapeHtml(settings.academyName).toUpperCase().split(/\s+/).join('<br />');
@@ -928,7 +784,6 @@ function instructorModal(instructor = null) {
   const data = instructor || { name: '', speciality: 'TWR', groups: 0 };
   openModal(`<h3>${instructor ? 'Modifier' : 'Ajouter'} un instructeur</h3><p>La spécialité détermine les phases auxquelles il peut être affecté.</p><div class="modal-form"><label>Nom complet<input id="newInstructorName" autocomplete="name" value="${escapeHtml(data.name)}" placeholder="Ex. Nadia Benali" /></label><label>Spécialité<select id="newInstructorSpeciality"><option ${data.speciality === 'TWR' ? 'selected' : ''}>TWR</option><option ${data.speciality === 'Approche Radar' ? 'selected' : ''}>Approche Radar</option><option ${data.speciality === 'TWR + Approche Radar' ? 'selected' : ''}>TWR + Approche Radar</option><option ${data.speciality === 'En-route Radar' ? 'selected' : ''}>En-route Radar</option></select></label><label>Groupes déjà affectés<input id="newInstructorGroups" type="number" min="0" value="${data.groups || 0}" /></label></div><div class="modal-actions"><button class="outline-button" id="modalCancel">Annuler</button><button class="primary-button" data-save-instructor="${instructor?.id || ''}">${instructor ? 'Enregistrer' : 'Ajouter'}</button></div>`);
 }
-
 function addInstructorFromModal(id = '') {
   const nameInput = $('#newInstructorName');
   const specialityInput = $('#newInstructorSpeciality');
@@ -961,13 +816,11 @@ function renderResourceSummary() {
   $('#resourceAvailablePositions').textContent = available;
   $('#resourceAvailabilityInfo').textContent = `${resources.length} ressource${resources.length > 1 ? 's' : ''} configurée${resources.length > 1 ? 's' : ''}`;
 }
-
 function resourceModal(resource = null) {
   const isEditing = Boolean(resource);
   const data = resource || { name: '', positions: 1, type: 'TWR', phases: ['aerodrome'], availability: 'Disponible' };
   openModal(`<h3>${isEditing ? 'Modifier' : 'Ajouter'} une ressource</h3><p>Définissez les positions et les phases compatibles. Une ressource peut servir plusieurs promotions, sans être attachée définitivement à une seule phase.</p><div class="modal-form"><label>Nom de la ressource<input id="resourceNameInput" value="${escapeHtml(data.name)}" placeholder="Ex. RADAR APP 3" /></label><label>Nombre de positions<input id="resourcePositionsInput" type="number" min="1" value="${data.positions}" /></label><label>Type<select id="resourceTypeInput"><option value="TWR" ${data.type === 'TWR' ? 'selected' : ''}>TWR</option><option value="APP" ${data.type === 'APP' ? 'selected' : ''}>Approche Radar</option><option value="ENR" ${data.type === 'ENR' ? 'selected' : ''}>En-route Radar</option></select></label><label>Disponibilité<select id="resourceAvailabilityInput"><option ${data.availability === 'Disponible' ? 'selected' : ''}>Disponible</option><option ${data.availability === 'Indisponible' ? 'selected' : ''}>Indisponible</option></select></label></div><div class="modal-actions"><button class="outline-button" id="modalCancel">Annuler</button><button class="primary-button" data-save-resource="${resource?.id || ''}">${isEditing ? 'Enregistrer' : 'Ajouter'}</button></div>`);
 }
-
 function saveResourceFromModal(id) {
   const name = $('#resourceNameInput')?.value.trim(); const positions = Number($('#resourcePositionsInput')?.value) || 0; const type = $('#resourceTypeInput')?.value;
   if (!name || positions < 1) { showToast('Indiquez un nom et au moins une position.'); return; }
@@ -977,12 +830,10 @@ function saveResourceFromModal(id) {
   if (index >= 0) resources.splice(index, 1, resource); else resources.push(resource);
   persistManagementData(); renderResourceCards(); renderResourceSummary(); renderResourceSelector(); renderDashboard(); renderWeekGrid(); closeModal(); showToast(`Ressource ${name} enregistrée.`);
 }
-
 function deleteResource(id) {
   const resource = resources.find(item => item.id === id); if (!resource) return;
   openModal(`<h3>Supprimer ${escapeHtml(resource.name)} ?</h3><p class="modal-confirm">Cette ressource ne sera plus disponible pour les nouveaux plannings. Les promotions la utilisant devront être recalculées.</p><div class="modal-actions"><button class="outline-button" id="modalCancel">Annuler</button><button class="primary-button" data-confirm-delete-resource="${resource.id}">Supprimer</button></div>`);
 }
-
 function renderResourceCards() {
   const target = $('#resourceCards');
   if (!resources.length) { target.innerHTML = '<div class="empty-state">Aucune ressource enregistrée. Ajoutez une ressource pour commencer la planification.</div>'; return; }
@@ -1019,196 +870,65 @@ function setView(viewId) {
 function renderAllData() {
   renderUserProfile(); renderResourceSelector(); renderResourceSummary(); renderResourceCards(); renderPromotions(); renderInstructors(); renderInstructorPills(); updateEstimates(); renderDashboard(); renderWeekGrid(); renderGeneratedPlan(); renderPhaseTracking(); renderSessions(); renderStudents(); renderReports(); renderSettings();
 }
-
 function toggleSidebar() {
   const sidebar = $('.sidebar'); const menuButton = $('.menu-button');
   const narrow = window.matchMedia('(max-width: 820px)').matches;
   if (narrow) {
     sidebar.classList.toggle('open');
-    document.body.classList.toggle('menu-open');
     menuButton.setAttribute('aria-expanded', String(sidebar.classList.contains('open')));
-    let overlay = document.querySelector('.sidebar-overlay');
-    if (sidebar.classList.contains('open')) {
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.className = 'sidebar-overlay active';
-        overlay.addEventListener('click', function() { toggleSidebar(); });
-        document.body.appendChild(overlay);
-      }
-    } else {
-      if (overlay) overlay.remove();
-    }
     return;
   }
   document.body.classList.toggle('menu-collapsed');
   menuButton.setAttribute('aria-expanded', String(!document.body.classList.contains('menu-collapsed')));
 }
-
 function collapseSidebar() {
-  const sidebar = $('.sidebar');
-  const overlay = document.querySelector('.sidebar-overlay');
-  sidebar.classList.remove('open');
-  document.body.classList.remove('menu-open');
-  if (overlay) overlay.remove();
-  document.body.classList.add('menu-collapsed');
-  $('.menu-button').setAttribute('aria-expanded', 'false');
+  $('.sidebar').classList.remove('open'); document.body.classList.add('menu-collapsed'); $('.menu-button').setAttribute('aria-expanded', 'false');
 }
 
 function setupEvents() {
   $$('.nav-item').forEach(button => button.addEventListener('click', () => setView(button.dataset.view)));
   $$('[data-go]').forEach(button => button.addEventListener('click', () => setView(button.dataset.go)));
-  
-  $('#phaseCards').addEventListener('click', event => { 
-    const card = event.target.closest('.phase-card'); 
-    if (!card) return; 
-    state.phase = card.dataset.phase; 
-    $$('.phase-card').forEach(item => item.classList.toggle('selected', item === card)); 
-    const allowed = new Set(resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible').map(r => r.id)); 
-    state.selectedResources = new Set([...state.selectedResources].filter(id => allowed.has(id))); 
-    if (!state.selectedResources.size && allowed.size) state.selectedResources.add([...allowed][0]); 
-    renderResourceSelector(); renderInstructorPills(); updateEstimates(); 
-  });
-  
+  $('#phaseCards').addEventListener('click', event => { const card = event.target.closest('.phase-card'); if (!card) return; state.phase = card.dataset.phase; $$('.phase-card').forEach(item => item.classList.toggle('selected', item === card)); const allowed = new Set(resources.filter(r => r.phases.includes(state.phase) && r.availability !== 'Indisponible').map(r => r.id)); state.selectedResources = new Set([...state.selectedResources].filter(id => allowed.has(id))); if (!state.selectedResources.size && allowed.size) state.selectedResources.add([...allowed][0]); renderResourceSelector(); renderInstructorPills(); updateEstimates(); });
   ['studentCount','sessionCount','sessionDuration','breakDuration','dayStart','dayEnd','startDate'].forEach(id => $(`#${id}`).addEventListener('input', updateEstimates));
   $$('#dayToggles button').forEach(button => button.addEventListener('click', () => { button.classList.toggle('selected'); updateEstimates(); }));
-  
-  $('#generatePlan').addEventListener('click', () => { 
-    state.generated = true; 
-    const saved = saveCurrentPromotion(); 
-    if (!saved) return; 
-    const info = calculate(); 
-    state.planningWeekStart = dateFromKey(saved.startDate) || new Date(); 
-    renderWeekGrid(); renderDashboard(); renderGeneratedPlan(); setView('planning'); 
-    showToast(`${info.groups} groupes et ${info.totalRotations} rotations ont été proposés automatiquement.`); 
-  });
-  
-  $('#savePromotion').addEventListener('click', () => { 
-    state.generated = false; 
-    const saved = saveCurrentPromotion(); 
-    if (saved) showToast(`Promotion ${saved.name} enregistrée.`); 
-  });
-  
+  $('#generatePlan').addEventListener('click', () => { state.generated = true; const saved = saveCurrentPromotion(); if (!saved) return; const info = calculate(); state.planningWeekStart = dateFromKey(saved.startDate) || new Date(); renderWeekGrid(); renderDashboard(); renderGeneratedPlan(); setView('planning'); showToast(`${info.groups} groupes et ${info.totalRotations} rotations ont été proposés automatiquement.`); });
+  $('#savePromotion').addEventListener('click', () => { state.generated = false; const saved = saveCurrentPromotion(); if (saved) showToast(`Promotion ${saved.name} enregistrée.`); });
   $('#resetPlanner').addEventListener('click', () => { resetPromotionForm(); showToast('Formulaire de planification réinitialisé.'); });
   $('#newPromotion').addEventListener('click', () => { resetPromotionForm(); $('#cohortName').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#cohortName').focus(); showToast('Nouvelle promotion : complétez le formulaire puis enregistrez-la.'); });
-  
-  $('#recalculate').addEventListener('click', () => { 
-    renderWeekGrid(); renderDashboard(); 
-    const conflicts = planningConflicts(); 
-    showToast(conflicts.length ? `${conflicts.length} conflit${conflicts.length > 1 ? 's' : ''} à examiner après recalcul.` : 'Planning recalculé : aucun conflit détecté.'); 
-  });
-  
+  $('#recalculate').addEventListener('click', () => { renderWeekGrid(); renderDashboard(); const conflicts = planningConflicts(); showToast(conflicts.length ? `${conflicts.length} conflit${conflicts.length > 1 ? 's' : ''} à examiner après recalcul.` : 'Planning recalculé : aucun conflit détecté.'); });
   $('#optimize').addEventListener('click', () => $('#recalculate').click());
   bindPlanningActions();
-  
-  $('#addMaintenance').addEventListener('click', () => { 
-    const date = dateKey(displayedDates()[0]); 
-    openModal(`<h3>Ajouter une indisponibilité</h3><p>La position sera bloquée à la date choisie et les conflits éventuels seront signalés.</p><div class="modal-form"><label>Ressource<select id="maintenanceResource">${resources.map(resource => `<option value="${resource.id}">${escapeHtml(resource.name)}</option>`).join('')}</select></label><label>Date<input id="maintenanceDate" type="date" value="${date}" /></label><label>Motif<input id="maintenanceReason" value="Maintenance" /></label></div><div class="modal-actions"><button class="outline-button" id="modalCancel">Annuler</button><button class="primary-button" id="saveMaintenance">Bloquer la ressource</button></div>`); 
-  });
-  
-  $('#showConflict').addEventListener('click', () => { 
-    const conflicts = planningConflicts(); 
-    const details = conflicts.length ? conflicts.map(conflict => `<li>${escapeHtml(conflict.event.title)} · ${formatDate(dateFromKey(conflict.event.date))} · ${conflict.type === 'maintenance' ? 'ressource indisponible' : 'créneau en chevauchement'}</li>`).join('') : '<li>Aucun conflit détecté.</li>'; 
-    openModal(`<h3>Contrôles de planning</h3><p>Les alertes sont calculées avec les données que vous avez créées.</p><ul>${details}</ul><p>Modifiez la promotion, une ressource ou une indisponibilité, puis recalculez.</p><div class="modal-actions"><button class="outline-button" id="modalCancel">Fermer</button><button class="primary-button" id="modalRecalculate">Recalculer</button></div>`); 
-  });
-  
-  $('#modalClose').addEventListener('click', closeModal); 
-  $('#modalBackdrop').addEventListener('click', event => { if (event.target === $('#modalBackdrop')) closeModal(); });
-  
+  $('#addMaintenance').addEventListener('click', () => { const date = dateKey(displayedDates()[0]); openModal(`<h3>Ajouter une indisponibilité</h3><p>La position sera bloquée à la date choisie et les conflits éventuels seront signalés.</p><div class="modal-form"><label>Ressource<select id="maintenanceResource">${resources.map(resource => `<option value="${resource.id}">${escapeHtml(resource.name)}</option>`).join('')}</select></label><label>Date<input id="maintenanceDate" type="date" value="${date}" /></label><label>Motif<input id="maintenanceReason" value="Maintenance" /></label></div><div class="modal-actions"><button class="outline-button" id="modalCancel">Annuler</button><button class="primary-button" id="saveMaintenance">Bloquer la ressource</button></div>`); });
+  $('#showConflict').addEventListener('click', () => { const conflicts = planningConflicts(); const details = conflicts.length ? conflicts.map(conflict => `<li>${escapeHtml(conflict.event.title)} · ${formatDate(dateFromKey(conflict.event.date))} · ${conflict.type === 'maintenance' ? 'ressource indisponible' : 'créneau en chevauchement'}</li>`).join('') : '<li>Aucun conflit détecté.</li>'; openModal(`<h3>Contrôles de planning</h3><p>Les alertes sont calculées avec les données que vous avez créées.</p><ul>${details}</ul><p>Modifiez la promotion, une ressource ou une indisponibilité, puis recalculez.</p><div class="modal-actions"><button class="outline-button" id="modalCancel">Fermer</button><button class="primary-button" id="modalRecalculate">Recalculer</button></div>`); });
+  $('#modalClose').addEventListener('click', closeModal); $('#modalBackdrop').addEventListener('click', event => { if (event.target === $('#modalBackdrop')) closeModal(); });
   $('#openResourceCreator').addEventListener('click', () => resourceModal());
   $('#addInstructor').addEventListener('click', () => instructorModal());
-  
-  $('#previousPeriod').addEventListener('click', () => { 
-    state.planningWeekStart = addDays(state.planningWeekStart, state.planningMode === 'month' ? -28 : -7); 
-    renderWeekGrid(); renderDashboard(); 
+  $('#previousPeriod').addEventListener('click', () => { state.planningWeekStart = addDays(state.planningWeekStart, state.planningMode === 'month' ? -28 : -7); renderWeekGrid(); renderDashboard(); });
+  $('#nextPeriod').addEventListener('click', () => { state.planningWeekStart = addDays(state.planningWeekStart, state.planningMode === 'month' ? 28 : 7); renderWeekGrid(); renderDashboard(); });
+  $('#currentPeriod').addEventListener('click', () => { const firstPlanned = promotions.find(promotion => promotion.status === 'Planifiée' && promotion.startDate); state.planningWeekStart = firstPlanned ? dateFromKey(firstPlanned.startDate) : new Date(); renderWeekGrid(); renderDashboard(); });
+  $$('[data-planning-mode]').forEach(button => button.addEventListener('click', () => { state.planningMode = button.dataset.planningMode; $$('[data-planning-mode]').forEach(item => item.classList.toggle('active', item === button)); renderWeekGrid(); showToast(state.planningMode === 'month' ? 'Vue mensuelle affichée.' : 'Vue hebdomadaire affichée.'); }));
+  $('#exportPlanning').addEventListener('click', () => {
+    const rows = [['Promotion', 'Ressource', 'Date', 'Créneau'], ...scheduledEvents().map(event => [event.title, resources.find(resource => resource.id === event.resourceId)?.name || '', event.date, event.time])];
+    const csv = rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(';')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const link = document.createElement('a'); link.href = url; link.download = 'atc-planner-planning.csv'; link.click(); URL.revokeObjectURL(url); showToast('Export du planning téléchargé.');
   });
-  
-  $('#nextPeriod').addEventListener('click', () => { 
-    state.planningWeekStart = addDays(state.planningWeekStart, state.planningMode === 'month' ? 28 : 7); 
-    renderWeekGrid(); renderDashboard(); 
-  });
-  
-  $('#currentPeriod').addEventListener('click', () => { 
-    const firstPlanned = promotions.find(promotion => promotion.status === 'Planifiée' && promotion.startDate); 
-    state.planningWeekStart = firstPlanned ? dateFromKey(firstPlanned.startDate) : new Date(); 
-    renderWeekGrid(); renderDashboard(); 
-  });
-  
-  $$('[data-planning-mode]').forEach(button => button.addEventListener('click', () => { 
-    state.planningMode = button.dataset.planningMode; 
-    $$('[data-planning-mode]').forEach(item => item.classList.toggle('active', item === button)); 
-    renderWeekGrid(); 
-    showToast(state.planningMode === 'month' ? 'Vue mensuelle affichée.' : 'Vue hebdomadaire affichée.'); 
-  }));
-  
-  $('#exportPlanning').addEventListener('click', exportPlanningExcel);
   $('#exportPlanningPdf').addEventListener('click', exportPlanningPdf);
-  
   $('#regenerateGroups').addEventListener('click', () => { renderPhaseTracking(); showToast('Groupes recalculés selon les positions disponibles.'); });
   $('#sessionFilter').addEventListener('change', renderSessions);
-  
   $('#exportSessions').addEventListener('click', () => {
-    const rows = [['Promotion / groupe', 'Date', 'Créneau', 'Ressource', 'Statut'], ...scheduledEvents().map(event => {
-      const dateObj = dateFromKey(event.date);
-      return [event.title, dateObj ? formatDate(dateObj) : event.date, event.time, resources.find(resource => resource.id === event.resourceId)?.name || '', event.locked ? 'Validée' : 'Planifiée'];
-    })];
+    const rows = [['Promotion / groupe', 'Date', 'Créneau', 'Ressource'], ...scheduledEvents().map(event => [event.title, event.date, event.time, resources.find(resource => resource.id === event.resourceId)?.name || ''])];
     downloadCsv('atc-planner-sessions.csv', rows); showToast('Export des séances téléchargé.');
   });
-  
   $('#addStudent').addEventListener('click', addStudentModal);
   $('#studentPromotionSelect').addEventListener('change', event => { state.studentPromotionId = event.target.value; renderStudents(); });
-  
   $('#exportReport').addEventListener('click', () => {
-    const events = scheduledEvents(); 
-    const hours = events.reduce((sum, event) => sum + (event.endMinutes - event.startMinutes) / 60, 0);
-    downloadCsv('atc-planner-rapport.csv', [['Indicateur', 'Valeur'], ['Promotions', promotions.length], ['Séances générées', events.length], ['Heures-position', hours.toFixed(2)], ['Étudiants', promotions.reduce((sum, promotion) => sum + (Number(promotion.students) || 0), 0)]]); 
-    showToast('Rapport téléchargé.');
+    const events = scheduledEvents(); const hours = events.reduce((sum, event) => sum + (event.endMinutes - event.startMinutes) / 60, 0);
+    downloadCsv('atc-planner-rapport.csv', [['Indicateur', 'Valeur'], ['Promotions', promotions.length], ['Séances générées', events.length], ['Heures-position', hours.toFixed(2)], ['Étudiants', promotions.reduce((sum, promotion) => sum + (Number(promotion.students) || 0), 0)]]); showToast('Rapport téléchargé.');
   });
-  
   $('#saveSettings').addEventListener('click', saveSettings);
   $('#editUserProfile').addEventListener('click', userProfileModal);
-  
-  // Menu mobile
-  const menuButton = document.getElementById('menuButton');
-  const collapseBtn = document.getElementById('collapseSidebar');
-  const overlay = document.getElementById('sidebarOverlay');
-  
-  if (menuButton) {
-    const newMenuButton = menuButton.cloneNode(true);
-    menuButton.parentNode.replaceChild(newMenuButton, menuButton);
-    newMenuButton.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); toggleSidebar(); });
-    newMenuButton.addEventListener('touchstart', function(e) { e.preventDefault(); toggleSidebar(); });
-  }
-  
-  if (collapseBtn) {
-    const newCollapseBtn = collapseBtn.cloneNode(true);
-    collapseBtn.parentNode.replaceChild(newCollapseBtn, collapseBtn);
-    newCollapseBtn.addEventListener('click', function(e) { e.preventDefault(); collapseSidebar(); });
-  }
-  
-  if (overlay) {
-    overlay.addEventListener('click', function() { if (document.querySelector('.sidebar.open')) toggleSidebar(); });
-  }
-  
-  document.querySelectorAll('.nav-item').forEach(function(item) {
-    item.addEventListener('click', function() {
-      if (window.innerWidth <= 820 && document.querySelector('.sidebar.open')) toggleSidebar();
-    });
-  });
-  
-  let resizeTimer;
-  window.addEventListener('resize', function() {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function() {
-      if (window.innerWidth > 820) {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar) sidebar.classList.remove('open');
-        document.body.classList.remove('menu-open');
-        if (overlay) overlay.remove();
-      }
-    }, 250);
-  });
-
+  $('.menu-button').addEventListener('click', toggleSidebar);
+  $('.collapse').addEventListener('click', collapseSidebar);
   document.addEventListener('click', event => {
     const promotionButton = event.target.closest('[data-promo-action]');
     const phaseButton = event.target.closest('[data-set-phase]');
@@ -1222,20 +942,7 @@ function setupEvents() {
     const confirmedResource = event.target.closest('[data-confirm-delete-resource]');
     const removeStudent = event.target.closest('[data-delete-student]');
     const toggleLockButton = event.target.closest('[data-toggle-lock]');
-    
-    if (toggleLockButton) {
-      event.preventDefault();
-      const promotionId = toggleLockButton.dataset.toggleLock;
-      const eventId = toggleLockButton.dataset.eventId;
-      if (promotionId && eventId) toggleSlotLock(promotionId, eventId);
-      return;
-    }
-    
-    if (promotionButton) { 
-      if (promotionButton.dataset.promoAction === 'edit') editPromotion(promotionButton.dataset.promotionId); 
-      else if (promotionButton.dataset.promoAction === 'track') { state.trackingPromotionId = promotionButton.dataset.promotionId; setView('phase-tracking'); } 
-      else deletePromotion(promotionButton.dataset.promotionId); 
-    }
+    if (promotionButton) { if (promotionButton.dataset.promoAction === 'edit') editPromotion(promotionButton.dataset.promotionId); else if (promotionButton.dataset.promoAction === 'track') { state.trackingPromotionId = promotionButton.dataset.promotionId; setView('phase-tracking'); } else deletePromotion(promotionButton.dataset.promotionId); }
     if (phaseButton) { const promotion = promotions.find(item => item.id === phaseButton.dataset.trackingPromotion); if (promotion) { promotion.phase = phaseButton.dataset.setPhase; promotion.status = 'En cours'; persistManagementData(); renderPromotions(); renderPhaseTracking(); renderDashboard(); renderWeekGrid(); showToast(`Phase mise à jour : ${phaseLabels[promotion.phase]}.`); } }
     if (instructorButton) deleteInstructor(instructorButton.dataset.deleteInstructor);
     if (editInstructor) instructorModal(instructors.find(item => item.id === editInstructor.dataset.editInstructor));
@@ -1246,6 +953,7 @@ function setupEvents() {
     if (confirmedInstructor) { instructors = instructors.filter(item => item.id !== confirmedInstructor.dataset.confirmDeleteInstructor); persistManagementData(); renderInstructors(); renderInstructorPills(); renderDashboard(); closeModal(); showToast('Instructeur retiré.'); }
     if (confirmedResource) { resources = resources.filter(item => item.id !== confirmedResource.dataset.confirmDeleteResource); state.selectedResources.delete(confirmedResource.dataset.confirmDeleteResource); persistManagementData(); renderResourceCards(); renderResourceSummary(); renderResourceSelector(); renderDashboard(); renderWeekGrid(); closeModal(); showToast('Ressource supprimée.'); }
     if (removeStudent) deleteStudent(removeStudent.dataset.deleteStudent);
+    if (toggleLockButton) toggleSlotLock(toggleLockButton.dataset.toggleLock, toggleLockButton.dataset.eventId);
     if (event.target.id === 'modalCancel') closeModal();
     if (event.target.id === 'modalRecalculate') { closeModal(); $('#recalculate').click(); }
     if (event.target.id === 'modalDone') closeModal();
@@ -1255,7 +963,6 @@ function setupEvents() {
     if (event.target.id === 'saveUserProfile') saveUserProfile();
     if (event.target.id === 'saveMaintenance') { state.maintenance = { resourceId: $('#maintenanceResource').value, date: $('#maintenanceDate').value, reason: $('#maintenanceReason').value.trim() || 'Maintenance' }; persistManagementData(); renderWeekGrid(); renderDashboard(); closeModal(); showToast('Indisponibilité ajoutée au planning.'); }
   });
-  
   document.addEventListener('change', event => {
     const phaseAssignment = event.target.closest('[data-phase-instructor]');
     const groupAssignment = event.target.closest('[data-group-instructor]');
